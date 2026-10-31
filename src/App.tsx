@@ -929,17 +929,6 @@ export default function App() {
     notify(lang === 'bn' ? 'লগআউট সফল হয়েছে' : 'Logged out successfully');
   };
 
-  const quickDemoLogin = (asRole: MemberRole) => {
-    const demo = users.find(u => u.role === asRole);
-    if (!demo) {
-      notify(lang === 'bn' ? `কোনো ${asRole} অ্যাকাউন্ট পাওয়া যায়নি। আগে সাইন-আপ করুন।` : `No ${asRole} account found yet. Please sign up.`);
-      return;
-    }
-    setCurrentUser(demo);
-    setVerifyPhone(demo.phone);
-    notify(lang === 'bn' ? `${demo.name} হিসেবে লগইন সম্পন্ন` : `Logged in as ${demo.name}`);
-  };
-
   // ================= CHADA PAYMENT SUBMISSION (MANUAL STATEMENT VERIFICATION) =================
   const submitChadaPayment = () => {
     const cleanTrx = inputTrxId.trim().toUpperCase();
@@ -1022,44 +1011,6 @@ export default function App() {
 
     setInputTrxId('');
     notify(lang === 'bn' ? 'TrxID জমা হয়েছে! অ্যাডমিন স্টেটমেন্ট যাচাই করে অনুমোদন করবেন।' : 'Submitted for admin verification!');
-  };
-
-  // Helper to generate sample TrxID for testing
-  const generateSampleTrxId = () => {
-    const prefix = chadaMethod === 'bKash' ? 'BK' : 'NG';
-    const sample = prefix + Math.floor(10000000 + Math.random() * 90000000).toString();
-    setInputTrxId(sample);
-    notify(lang === 'bn' ? `নমুনা TrxID যুক্ত করা হয়েছে: ${sample}` : `Sample TrxID filled: ${sample}`);
-  };
-
-  // Mock payment entry helper for testing statement reconciliation
-  const generateMockMerchantPayment = () => {
-    const mockTrx = (Math.random() > 0.5 ? 'BK' : 'NG') + Math.floor(10000000 + Math.random() * 90000000).toString();
-    const newTx: MerchantTransaction = {
-      id: String(Date.now()),
-      trxId: mockTrx,
-      amount: 1000,
-      sender: currentUser?.phone || '01623919385',
-      date: new Date().toISOString().slice(0, 16).replace('T', ' '),
-      status: 'Unclaimed'
-    };
-    setMerchantLedger(prev => [newTx, ...prev]);
-    notify(lang === 'bn' ? `স্টেটমেন্টে টেস্ট এন্ট্রি তৈরি হয়েছে: ${mockTrx}` : `Test entry added: ${mockTrx}`);
-  };
-
-  // Reset demo data to clean state
-  const resetAllData = () => {
-    if (window.confirm(lang === 'bn' ? 'আপনি কি সমস্ত ডাটা মুছে সম্পূর্ণ ফ্রেশ শুরু করতে চান?' : 'Reset all data to clean state?')) {
-      setUsers([]);
-      setCurrentUser(null);
-      setIncome([]);
-      setBills([]);
-      setNotifications([]);
-      setMerchantLedger([]);
-      localStorage.clear();
-      localStorage.setItem('utsab_sonchay_v2_clean', 'true');
-      notify(lang === 'bn' ? 'সব তথ্য মুছে ফ্রেশ করা হয়েছে' : 'All data reset to clean state');
-    }
   };
 
   // Handle Notification Click (make approval requests functional)
@@ -1581,29 +1532,6 @@ END:VCALENDAR`;
                   {t.haveAccount}
                 </button>
               </form>
-            )}
-
-            {/* Quick Demo Login Grid (only when accounts exist) */}
-            {users.length > 0 && (
-              <div className="demo-login-box">
-                <span>{t.quickDemoLogin}</span>
-                <div className="demo-btn-grid">
-                  <button
-                    type="button"
-                    className="demo-btn admin"
-                    onClick={() => quickDemoLogin('Admin')}
-                  >
-                    <ShieldCheck size={14} /> {t.demoAdminLogin}
-                  </button>
-                  <button
-                    type="button"
-                    className="demo-btn member"
-                    onClick={() => quickDemoLogin('Member')}
-                  >
-                    <Users size={14} /> {t.demoMemberLogin}
-                  </button>
-                </div>
-              </div>
             )}
           </div>
         </div>
@@ -2228,16 +2156,9 @@ END:VCALENDAR`;
             />
 
             {/* TrxID Input */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '16px 0 8px' }}>
-              <label style={{ margin: 0 }}>{lang === 'bn' ? '৫. ট্রানজ্যাকশন আইডি (TrxID)' : '5. Transaction ID (TrxID)'}</label>
-              <button
-                type="button"
-                onClick={generateSampleTrxId}
-                style={{ background: 'transparent', border: 0, color: '#e2136e', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
-              >
-                {lang === 'bn' ? '⚡ নমুনা TrxID দিন' : '⚡ Sample TrxID'}
-              </button>
-            </div>
+            <label style={{ margin: '16px 0 8px', display: 'block' }}>
+              {lang === 'bn' ? '৫. ট্রানজ্যাকশন আইডি (TrxID)' : '5. Transaction ID (TrxID)'}
+            </label>
             <input
               className="field"
               value={inputTrxId}
@@ -3954,38 +3875,9 @@ END:VCALENDAR`;
               )}
             </div>
 
-            {/* Quick Switch Between Demo Admin and Demo Member for testing */}
-            <div className="demo-login-box" style={{ marginTop: 16 }}>
-              <span>{lang === 'bn' ? 'দ্রুত ভূমিকা পরিবর্তন (টেস্টিং):' : 'Switch Demo User:'}</span>
-              <div className="demo-btn-grid">
-                <button
-                  type="button"
-                  className={`demo-btn admin ${currentUser.role === 'Admin' ? 'active' : ''}`}
-                  onClick={() => quickDemoLogin('Admin')}
-                >
-                  <ShieldCheck size={14} /> Admin (রাকিব)
-                </button>
-                <button
-                  type="button"
-                  className={`demo-btn member ${currentUser.role === 'Member' ? 'active' : ''}`}
-                  onClick={() => quickDemoLogin('Member')}
-                >
-                  <Users size={14} /> Member (সুমন)
-                </button>
-              </div>
-            </div>
-
-            <button
-              className="outline-button full"
-              style={{ marginTop: 14, borderColor: '#e4b6b6', color: '#b32323' }}
-              onClick={resetAllData}
-            >
-              <RotateCcw size={16} /> {t.resetDemo}
-            </button>
-
             <button
               className="secondary-button"
-              style={{ width: '100%', marginTop: 10 }}
+              style={{ width: '100%', marginTop: 20 }}
               onClick={handleLogout}
             >
               <LogOut size={16} /> {t.logout}
@@ -4072,12 +3964,6 @@ END:VCALENDAR`;
                 {merchantLedger.filter(r => r.status === 'Claimed').length}/{merchantLedger.length}{' '}
                 {lang === 'bn' ? 'দাবিদার চিহ্নিত' : 'Claimed'}
               </span>
-              <button
-                className="primary-small"
-                onClick={generateMockMerchantPayment}
-              >
-                <Plus size={15} /> {lang === 'bn' ? 'নতুন টেস্ট ট্রানজেকশন' : 'Add Test Payment'}
-              </button>
             </div>
 
             {merchantLedger.map(r => (
