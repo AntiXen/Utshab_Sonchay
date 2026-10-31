@@ -43,7 +43,10 @@ import {
   AlertCircle,
   BellRing,
   Send,
-  AlertTriangle
+  AlertTriangle,
+  Eye,
+  EyeOff,
+  KeyRound
 } from 'lucide-react';
 import { translations } from './translations';
 import {
@@ -58,6 +61,8 @@ import {
   updateBillStatusInFirestore,
   payBillInFirestore,
   saveUserToFirestore,
+  updateUserPasswordInFirestore,
+  updateUserCommitmentInFirestore,
 } from './services/backendService';
 
 export type Tab =
@@ -89,6 +94,7 @@ export interface User {
   password?: string;
   paid: boolean;
   active: boolean;
+  monthlyCommitment?: number;
 }
 
 export interface Income {
@@ -371,14 +377,14 @@ export default function App() {
 
   // One-time auto-wipe of legacy demo data from browser storage for production clean start
   useEffect(() => {
-    if (typeof window !== 'undefined' && !localStorage.getItem('utsab_sonchay_v2_clean')) {
+    if (typeof window !== 'undefined' && !localStorage.getItem('utsab_sonchay_v5_clean')) {
       localStorage.removeItem('puja_fund_users');
       localStorage.removeItem('puja_fund_current_user');
       localStorage.removeItem('puja_fund_income');
       localStorage.removeItem('puja_fund_bills');
       localStorage.removeItem('puja_fund_notifications');
       localStorage.removeItem('puja_fund_merchant_ledger');
-      localStorage.setItem('utsab_sonchay_v2_clean', 'true');
+      localStorage.setItem('utsab_sonchay_v5_clean', 'true');
       setUsers([]);
       setCurrentUser(null);
       setIncome([]);
@@ -397,10 +403,46 @@ export default function App() {
   const [addMenu, setAddMenu] = useState(false);
 
   // Auth Form State
-  const [authMode, setAuthMode] = useState<'login' | 'signup'>(() => users.length === 0 ? 'signup' : 'login');
+  const [authMode, setAuthMode] = useState<'login' | 'signup' | 'forgot'>(() => users.length === 0 ? 'signup' : 'login');
   const [authPhone, setAuthPhone] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authName, setAuthName] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [authMonthlyCommitment, setAuthMonthlyCommitment] = useState(1000);
+  const [customCommitmentInput, setCustomCommitmentInput] = useState('');
+
+  // Signup OTP verification state
+  const [signupStep, setSignupStep] = useState<'form' | 'otp'>('form');
+  const [generatedSignupOtp, setGeneratedSignupOtp] = useState('');
+  const [signupOtpInput, setSignupOtpInput] = useState('');
+  const [otpTimer, setOtpTimer] = useState(60);
+
+  // Forgot password state
+  const [forgotPhone, setForgotPhone] = useState('');
+  const [forgotStep, setForgotStep] = useState<'phone' | 'otp'>('phone');
+  const [generatedForgotOtp, setGeneratedForgotOtp] = useState('');
+  const [forgotOtpInput, setForgotOtpInput] = useState('');
+  const [newResetPassword, setNewResetPassword] = useState('');
+  const [forgotTimer, setForgotTimer] = useState(60);
+
+  // Change monthly limit modal state
+  const [showChangeLimitModal, setShowChangeLimitModal] = useState(false);
+  const [tempLimitChoice, setTempLimitChoice] = useState<number>(currentUser?.monthlyCommitment || 1000);
+  const [customLimitInput, setCustomLimitInput] = useState('');
+
+  // Countdown timer for OTP
+  useEffect(() => {
+    let interval: any;
+    if ((signupStep === 'otp' && otpTimer > 0) || (forgotStep === 'otp' && forgotTimer > 0)) {
+      interval = setInterval(() => {
+        setOtpTimer(prev => (prev > 0 ? prev - 1 : 0));
+        setForgotTimer(prev => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [signupStep, forgotStep, otpTimer, forgotTimer]);
 
   // Form states for Pronami
   const [amount, setAmount] = useState('500');
@@ -702,23 +744,8 @@ export default function App() {
     );
   };
 
-  // Test mobile screen notification right away
-  const testMobileScreenNotification = () => {
-    if (pushPermission !== 'granted') {
-      requestPushPermission();
-      return;
-    }
-    const testTitle = lang === 'bn' ? '📢 টেস্ট মোবাইল স্ক্রিন নোটিফিকেশন' : '📢 Test Mobile Screen Notification';
-    const testBody = lang === 'bn'
-      ? 'প্রতি মাসের ১-১০ তারিখের মধ্যে চাঁদা প্রদানের রিমাইন্ডার এভাবেই আপনার মোবাইল স্ক্রিনে প্রদর্শিত হবে।'
-      : 'This is how monthly chada reminders (1st - 10th) will appear on your phone screen even when outside the app.';
-    
-    sendDeviceNotification(testTitle, testBody, 'test-notification');
-    notify(lang === 'bn' ? 'মোবাইল স্ক্রিনে টেস্ট নোটিফিকেশন পাঠানো হয়েছে!' : 'Test notification sent to mobile screen!');
-  };
-
-  // Computed Financial Totals
-  const startingFund = 60000;
+  // Computed Financial Totals (0 dummy reserve - pure ledger calculation)
+  const startingFund = 0;
   const collected = useMemo(() => {
     return income.filter(x => x.status === 'Confirmed').reduce((s, x) => s + x.amount, 0) + startingFund;
   }, [income]);
@@ -874,12 +901,15 @@ export default function App() {
 
     setCurrentUser(user);
     setVerifyPhone(user.phone);
+    setChadaAmountInput(String(user.monthlyCommitment || 1000));
+    setTempLimitChoice(user.monthlyCommitment || 1000);
     setAuthPhone('');
     setAuthPassword('');
     notify(lang === 'bn' ? `স্বাগতম, ${user.name}!` : `Welcome, ${user.name}!`);
   };
 
-  const handleSignup = (e: React.FormEvent) => {
+  // Step 1 of Signup: Send OTP
+  const handleInitiateSignup = (e: React.FormEvent) => {
     e.preventDefault();
     if (!authName.trim()) {
       notify(lang === 'bn' ? 'আপনার নাম লিখুন' : 'Enter your name');
@@ -894,10 +924,33 @@ export default function App() {
       notify(lang === 'bn' ? 'এই মোবাইল নম্বরটি আগেই নিবন্ধিত হয়েছে' : 'This phone number is already registered');
       return;
     }
+    if (!authPassword || authPassword.length < 4) {
+      notify(lang === 'bn' ? 'কমপক্ষে ৪ ডিজিটের পাসওয়ার্ড বা পিন দিন' : 'Enter at least 4 digits for PIN/password');
+      return;
+    }
 
+    // Generate 6-digit OTP code
+    const generatedCode = String(Math.floor(100000 + Math.random() * 900000));
+    setGeneratedSignupOtp(generatedCode);
+    setSignupOtpInput('');
+    setSignupStep('otp');
+    setOtpTimer(60);
+    notify(lang === 'bn' ? `যাচাইকরণ ওটিপি কোড পাঠানো হয়েছে` : `Verification OTP code generated`);
+  };
+
+  // Step 2 of Signup: Verify OTP and Register Account
+  const handleVerifySignupOtp = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (signupOtpInput.trim() !== generatedSignupOtp) {
+      notify(lang === 'bn' ? 'ভুল ওটিপি কোড! অনুগ্রহ করে সঠিক ৬ ডিজিটের কোড দিন।' : 'Incorrect OTP code! Please enter the 6-digit code.');
+      return;
+    }
+
+    const cleanPhone = authPhone.trim().replace(/[^0-9]/g, '');
     // First person signed up is the Admin; everyone else is a Member
     const isFirstUser = users.length === 0 || !users.some(u => u.role === 'Admin');
     const assignedRole: MemberRole = isFirstUser ? 'Admin' : 'Member';
+    const finalCommitment = customCommitmentInput ? (Number(customCommitmentInput) || 1000) : (authMonthlyCommitment || 1000);
 
     const newUser: User = {
       id: Date.now(),
@@ -906,21 +959,106 @@ export default function App() {
       role: assignedRole,
       password: authPassword || '123',
       paid: false,
-      active: true
+      active: true,
+      monthlyCommitment: finalCommitment
     };
 
     setUsers(prev => [...prev, newUser]);
     saveUserToFirestore(newUser).catch(err => console.warn('Cloud save user failed:', err));
     setCurrentUser(newUser);
     setVerifyPhone(newUser.phone);
+    setChadaAmountInput(String(finalCommitment));
+    setTempLimitChoice(finalCommitment);
     setAuthName('');
     setAuthPhone('');
     setAuthPassword('');
+    setSignupStep('form');
+    setSignupOtpInput('');
+    setCustomCommitmentInput('');
+
     if (isFirstUser) {
       notify(lang === 'bn' ? '🎉 অভিনন্দন! আপনি প্রথম ব্যক্তি হিসেবে প্রধান অ্যাডমিন (Admin) ক্ষমতা পেয়েছেন।' : '🎉 Congratulations! You are registered as the Main Admin.');
     } else {
       notify(lang === 'bn' ? 'সদস্য নিবন্ধন সফল হয়েছে!' : 'Registration successful!');
     }
+  };
+
+  const handleResendSignupOtp = () => {
+    const generatedCode = String(Math.floor(100000 + Math.random() * 900000));
+    setGeneratedSignupOtp(generatedCode);
+    setOtpTimer(60);
+    notify(lang === 'bn' ? 'নতুন ওটিপি কোড পাঠানো হয়েছে!' : 'New OTP code sent!');
+  };
+
+  // Forgot Password: Step 1 Send OTP
+  const handleInitiateForgot = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanPhone = forgotPhone.trim().replace(/[^0-9]/g, '');
+    const user = users.find(u => u.phone.replace(/[^0-9]/g, '') === cleanPhone);
+    if (!user) {
+      notify(lang === 'bn' ? 'এই মোবাইল নম্বরে কোনো অ্যাকাউন্ট পাওয়া যায়নি' : 'No account found with this phone number');
+      return;
+    }
+    const generatedCode = String(Math.floor(100000 + Math.random() * 900000));
+    setGeneratedForgotOtp(generatedCode);
+    setForgotOtpInput('');
+    setNewResetPassword('');
+    setForgotStep('otp');
+    setForgotTimer(60);
+    notify(lang === 'bn' ? 'পাসওয়ার্ড রিসেট ওটিপি কোড পাঠানো হয়েছে' : 'Password reset OTP code sent');
+  };
+
+  // Forgot Password: Step 2 Verify OTP and Set New Password
+  const handleVerifyForgotOtp = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (forgotOtpInput.trim() !== generatedForgotOtp) {
+      notify(lang === 'bn' ? 'ভুল ওটিপি কোড! অনুগ্রহ করে সঠিক কোড দিন।' : 'Incorrect OTP code!');
+      return;
+    }
+    if (!newResetPassword || newResetPassword.length < 4) {
+      notify(lang === 'bn' ? 'কমপক্ষে ৪ ডিজিটের নতুন পাসওয়ার্ড দিন' : 'Enter at least 4 digits for new password');
+      return;
+    }
+
+    const cleanPhone = forgotPhone.trim().replace(/[^0-9]/g, '');
+    const user = users.find(u => u.phone.replace(/[^0-9]/g, '') === cleanPhone);
+    if (!user) return;
+
+    const updatedUser = { ...user, password: newResetPassword };
+    setUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
+    setCurrentUser(updatedUser);
+    setVerifyPhone(updatedUser.phone);
+    setChadaAmountInput(String(updatedUser.monthlyCommitment || 1000));
+    setTempLimitChoice(updatedUser.monthlyCommitment || 1000);
+
+    updateUserPasswordInFirestore(user.id, newResetPassword).catch(err => console.warn('Cloud password update error:', err));
+    setForgotStep('phone');
+    setForgotPhone('');
+    setForgotOtpInput('');
+    setNewResetPassword('');
+    setAuthMode('login');
+    notify(lang === 'bn' ? 'পাসওয়ার্ড সফলভাবে পরিবর্তিত হয়েছে এবং আপনি প্রবেশ করেছেন!' : 'Password reset successful! You are now logged in.');
+  };
+
+  const handleResendForgotOtp = () => {
+    const generatedCode = String(Math.floor(100000 + Math.random() * 900000));
+    setGeneratedForgotOtp(generatedCode);
+    setForgotTimer(60);
+    notify(lang === 'bn' ? 'নতুন ওটিপি কোড পাঠানো হয়েছে!' : 'New reset OTP sent!');
+  };
+
+  // Update Member's Monthly Commitment
+  const updateUserCommitment = (newAmount: number) => {
+    if (!currentUser || newAmount <= 0) return;
+    const updatedUser: User = { ...currentUser, monthlyCommitment: newAmount };
+    setCurrentUser(updatedUser);
+    setUsers(prev => prev.map(u => u.id === currentUser.id ? updatedUser : u));
+    setChadaAmountInput(String(newAmount));
+    setTempLimitChoice(newAmount);
+    setShowChangeLimitModal(false);
+    setCustomLimitInput('');
+    updateUserCommitmentInFirestore(currentUser.id, newAmount).catch(err => console.warn('Cloud update commitment error:', err));
+    notify(lang === 'bn' ? `আপনার মাসিক চাঁদা ৳${toBnDigits(newAmount)} নির্ধারণ করা হয়েছে!` : `Monthly commitment updated to ৳${newAmount}!`);
   };
 
   const handleLogout = () => {
@@ -1418,20 +1556,28 @@ END:VCALENDAR`;
           <div className="auth-tabs">
             <button
               className={`auth-tab ${authMode === 'login' ? 'active' : ''}`}
-              onClick={() => setAuthMode('login')}
+              onClick={() => {
+                setAuthMode('login');
+                setSignupStep('form');
+                setForgotStep('phone');
+              }}
             >
               <LogIn size={15} style={{ display: 'inline', marginRight: 5, verticalAlign: -2 }} /> {t.login}
             </button>
             <button
               className={`auth-tab ${authMode === 'signup' ? 'active' : ''}`}
-              onClick={() => setAuthMode('signup')}
+              onClick={() => {
+                setAuthMode('signup');
+                setSignupStep('form');
+                setForgotStep('phone');
+              }}
             >
               <UserPlus size={15} style={{ display: 'inline', marginRight: 5, verticalAlign: -2 }} /> {t.signup}
             </button>
           </div>
 
           <div className="form-card">
-            {authMode === 'login' ? (
+            {authMode === 'login' && (
               <form onSubmit={handleLogin}>
                 <h2 style={{ fontSize: 18, margin: '0 0 6px', color: '#8d1717' }}>{t.welcomeBack}</h2>
                 <p style={{ fontSize: 12, color: '#776', margin: '0 0 16px' }}>{t.loginSubtitle}</p>
@@ -1447,14 +1593,37 @@ END:VCALENDAR`;
                 />
 
                 <label>{t.password}</label>
-                <input
-                  type="password"
-                  className="field"
-                  value={authPassword}
-                  onChange={e => setAuthPassword(e.target.value)}
-                  placeholder="••••"
-                  required
-                />
+                <div className="password-input-wrap">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    className="field"
+                    value={authPassword}
+                    onChange={e => setAuthPassword(e.target.value)}
+                    placeholder="••••"
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="password-toggle-btn"
+                    onClick={() => setShowPassword(!showPassword)}
+                    tabIndex={-1}
+                    title={showPassword ? 'লুকান' : 'দেখুন'}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  className="forgot-password-link"
+                  onClick={() => {
+                    setAuthMode('forgot');
+                    setForgotStep('phone');
+                    setForgotPhone(authPhone);
+                  }}
+                >
+                  {t.forgotPassword}
+                </button>
 
                 <button type="submit" className="primary-button">
                   <LogIn size={18} /> {t.login}
@@ -1463,13 +1632,18 @@ END:VCALENDAR`;
                 <button
                   type="button"
                   className="auth-switch"
-                  onClick={() => setAuthMode('signup')}
+                  onClick={() => {
+                    setAuthMode('signup');
+                    setSignupStep('form');
+                  }}
                 >
                   {t.noAccount}
                 </button>
               </form>
-            ) : (
-              <form onSubmit={handleSignup}>
+            )}
+
+            {authMode === 'signup' && signupStep === 'form' && (
+              <form onSubmit={handleInitiateSignup}>
                 <h2 style={{ fontSize: 18, margin: '0 0 6px', color: '#8d1717' }}>{t.signup}</h2>
                 <p style={{ fontSize: 12, color: '#776', margin: '0 0 16px' }}>{t.signupSubtitle}</p>
 
@@ -1492,15 +1666,57 @@ END:VCALENDAR`;
                   required
                 />
 
-                <label>{t.password}</label>
+                {/* Monthly Contribution Limit Choice */}
+                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>{t.setMonthlyLimit}</span>
+                  <strong style={{ color: '#a61f1f' }}>
+                    {fmt(customCommitmentInput ? (Number(customCommitmentInput) || 1000) : authMonthlyCommitment)}/{lang === 'bn' ? 'মাস' : 'mo'}
+                  </strong>
+                </label>
+                <div className="monthly-choice-grid">
+                  {[500, 1000, 1500, 2000, 3000, 5000].map(amt => (
+                    <button
+                      key={amt}
+                      type="button"
+                      className={`monthly-choice-pill ${authMonthlyCommitment === amt && !customCommitmentInput ? 'active' : ''}`}
+                      onClick={() => {
+                        setAuthMonthlyCommitment(amt);
+                        setCustomCommitmentInput('');
+                      }}
+                    >
+                      ৳{toBnDigits(amt.toLocaleString())}
+                    </button>
+                  ))}
+                </div>
                 <input
-                  type="password"
                   className="field"
-                  value={authPassword}
-                  onChange={e => setAuthPassword(e.target.value)}
-                  placeholder="৪-৬ ডিজিটের পিন বা পাসওয়ার্ড"
-                  required
+                  style={{ marginTop: -4, marginBottom: 12 }}
+                  placeholder={lang === 'bn' ? 'অথবা কাস্টম টাকার পরিমাণ লিখুন (যেমন: ২৫০০)' : 'Or enter custom amount (e.g. 2500)'}
+                  value={customCommitmentInput}
+                  onChange={e => setCustomCommitmentInput(e.target.value.replace(/[^0-9]/g, ''))}
+                  inputMode="numeric"
                 />
+
+                <label>{t.password}</label>
+                <div className="password-input-wrap">
+                  <input
+                    type={showSignupPassword ? 'text' : 'password'}
+                    className="field"
+                    value={authPassword}
+                    onChange={e => setAuthPassword(e.target.value)}
+                    placeholder="৪-৬ ডিজিটের পিন বা পাসওয়ার্ড"
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="password-toggle-btn"
+                    onClick={() => setShowSignupPassword(!showSignupPassword)}
+                    tabIndex={-1}
+                    title={showSignupPassword ? 'লুকান' : 'দেখুন'}
+                  >
+                    {showSignupPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
 
                 {users.length === 0 ? (
                   <div className="info-note" style={{ marginTop: 14, background: '#fef3c7', borderColor: '#f59e0b', color: '#92400e' }}>
@@ -1520,8 +1736,8 @@ END:VCALENDAR`;
                   </div>
                 )}
 
-                <button type="submit" className="primary-button">
-                  <UserPlus size={18} /> {t.signup}
+                <button type="submit" className="primary-button" style={{ marginTop: 16 }}>
+                  <KeyRound size={18} /> {t.sendOtp}
                 </button>
 
                 <button
@@ -1530,6 +1746,206 @@ END:VCALENDAR`;
                   onClick={() => setAuthMode('login')}
                 >
                   {t.haveAccount}
+                </button>
+              </form>
+            )}
+
+            {/* Signup Step 2: OTP Verification */}
+            {authMode === 'signup' && signupStep === 'otp' && (
+              <form onSubmit={handleVerifySignupOtp}>
+                <h2 style={{ fontSize: 18, margin: '0 0 6px', color: '#8d1717' }}>
+                  {lang === 'bn' ? 'মোবাইল নম্বর যাচাইকরণ (OTP)' : 'Phone OTP Verification'}
+                </h2>
+                <p style={{ fontSize: 12, color: '#776', margin: '0 0 14px' }}>
+                  {lang === 'bn' ? `${authPhone} নম্বরে ৬-সংখ্যার ওটিপি কোড পাঠানো হয়েছে` : `6-digit OTP code sent to ${authPhone}`}
+                </p>
+
+                {/* Simulated SMS Alert Banner for Instant Testing & Live Use */}
+                <div className="otp-banner">
+                  <div>
+                    <span>📩 {lang === 'bn' ? 'আপনার ওটিপি কোড:' : 'Your OTP Code:'}</span>{' '}
+                    <strong>{generatedSignupOtp}</strong>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSignupOtpInput(generatedSignupOtp)}
+                    style={{
+                      background: '#d97706',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: 8,
+                      padding: '4px 8px',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {lang === 'bn' ? 'কোড বসান' : 'Auto-fill'}
+                  </button>
+                </div>
+
+                <label style={{ textAlign: 'center', display: 'block', fontWeight: 700 }}>
+                  {t.otpLabel}
+                </label>
+                <input
+                  className="otp-input-field"
+                  maxLength={6}
+                  value={signupOtpInput}
+                  onChange={e => setSignupOtpInput(e.target.value.replace(/[^0-9]/g, ''))}
+                  placeholder="••••••"
+                  inputMode="numeric"
+                  autoFocus
+                  required
+                />
+
+                <div style={{ textAlign: 'center', margin: '6px 0 16px', fontSize: 12, color: '#6d5b4e' }}>
+                  {otpTimer > 0 ? (
+                    <span>⏱️ {lang === 'bn' ? `পুনরায় কোড পাঠাতে অপেক্ষা করুন: ${toBnDigits(otpTimer)} সেকেন্ড` : `Resend code in: ${otpTimer}s`}</span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleResendSignupOtp}
+                      style={{ background: 'transparent', border: 'none', color: '#a61f1f', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer' }}
+                    >
+                      🔄 {t.resendOtp}
+                    </button>
+                  )}
+                </div>
+
+                <button type="submit" className="primary-button">
+                  <CheckCircle2 size={18} /> {lang === 'bn' ? 'যাচাই করুন ও অ্যাকাউন্ট সম্পন্ন করুন' : 'Verify & Complete Signup'}
+                </button>
+
+                <button
+                  type="button"
+                  className="auth-switch"
+                  onClick={() => setSignupStep('form')}
+                >
+                  ← {lang === 'bn' ? 'নম্বর পরিবর্তন / তথ্য সংশোধন করুন' : 'Change Phone / Edit Info'}
+                </button>
+              </form>
+            )}
+
+            {/* Forgot Password Flow */}
+            {authMode === 'forgot' && forgotStep === 'phone' && (
+              <form onSubmit={handleInitiateForgot}>
+                <h2 style={{ fontSize: 18, margin: '0 0 6px', color: '#8d1717' }}>{t.resetPassword}</h2>
+                <p style={{ fontSize: 12, color: '#776', margin: '0 0 16px' }}>{t.resetPasswordSubtitle}</p>
+
+                <label>{t.phone}</label>
+                <input
+                  className="field"
+                  value={forgotPhone}
+                  onChange={e => setForgotPhone(e.target.value)}
+                  placeholder="01XXXXXXXXX"
+                  inputMode="tel"
+                  required
+                  autoFocus
+                />
+
+                <button type="submit" className="primary-button" style={{ marginTop: 12 }}>
+                  <KeyRound size={18} /> {t.sendOtp}
+                </button>
+
+                <button
+                  type="button"
+                  className="auth-switch"
+                  onClick={() => setAuthMode('login')}
+                >
+                  ← {lang === 'bn' ? 'লগইন পৃষ্ঠায় ফিরে যান' : 'Back to Login'}
+                </button>
+              </form>
+            )}
+
+            {authMode === 'forgot' && forgotStep === 'otp' && (
+              <form onSubmit={handleVerifyForgotOtp}>
+                <h2 style={{ fontSize: 18, margin: '0 0 6px', color: '#8d1717' }}>{t.resetPassword}</h2>
+                <p style={{ fontSize: 12, color: '#776', margin: '0 0 14px' }}>
+                  {lang === 'bn' ? `${forgotPhone} নম্বরে ভেরিফিকেশন কোড পাঠানো হয়েছে` : `Verification code sent to ${forgotPhone}`}
+                </p>
+
+                <div className="otp-banner">
+                  <div>
+                    <span>📩 {lang === 'bn' ? 'রিসেট কোড:' : 'Reset OTP:'}</span>{' '}
+                    <strong>{generatedForgotOtp}</strong>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setForgotOtpInput(generatedForgotOtp)}
+                    style={{
+                      background: '#d97706',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: 8,
+                      padding: '4px 8px',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {lang === 'bn' ? 'কোড বসান' : 'Auto-fill'}
+                  </button>
+                </div>
+
+                <label style={{ textAlign: 'center', display: 'block', fontWeight: 700 }}>
+                  {t.otpLabel}
+                </label>
+                <input
+                  className="otp-input-field"
+                  maxLength={6}
+                  value={forgotOtpInput}
+                  onChange={e => setForgotOtpInput(e.target.value.replace(/[^0-9]/g, ''))}
+                  placeholder="••••••"
+                  inputMode="numeric"
+                  autoFocus
+                  required
+                />
+
+                <label>{t.newPassword}</label>
+                <div className="password-input-wrap">
+                  <input
+                    type={showResetPassword ? 'text' : 'password'}
+                    className="field"
+                    value={newResetPassword}
+                    onChange={e => setNewResetPassword(e.target.value)}
+                    placeholder="নতুন ৪-৬ ডিজিটের পিন বা পাসওয়ার্ড"
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="password-toggle-btn"
+                    onClick={() => setShowResetPassword(!showResetPassword)}
+                    tabIndex={-1}
+                    title={showResetPassword ? 'লুকান' : 'দেখুন'}
+                  >
+                    {showResetPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+
+                <div style={{ textAlign: 'center', margin: '6px 0 16px', fontSize: 12, color: '#6d5b4e' }}>
+                  {forgotTimer > 0 ? (
+                    <span>⏱️ {lang === 'bn' ? `পুনরায় কোড পাঠাতে অপেক্ষা করুন: ${toBnDigits(forgotTimer)} সেকেন্ড` : `Resend code in: ${forgotTimer}s`}</span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleResendForgotOtp}
+                      style={{ background: 'transparent', border: 'none', color: '#a61f1f', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer' }}
+                    >
+                      🔄 {t.resendOtp}
+                    </button>
+                  )}
+                </div>
+
+                <button type="submit" className="primary-button">
+                  <CheckCircle2 size={18} /> {lang === 'bn' ? 'পাসওয়ার্ড পরিবর্তন ও লগইন করুন' : 'Reset Password & Login'}
+                </button>
+
+                <button
+                  type="button"
+                  className="auth-switch"
+                  onClick={() => setAuthMode('login')}
+                >
+                  ← {lang === 'bn' ? 'লগইন পৃষ্ঠায় ফিরে যান' : 'Back to Login'}
                 </button>
               </form>
             )}
@@ -1765,9 +2181,6 @@ END:VCALENDAR`;
                   <BellRing size={16} color="#15803d" />
                   {t.pushActiveBadge} (১-১০ তারিখের রিমাইন্ডার সক্রিয়)
                 </span>
-                <button className="push-test-pill" onClick={testMobileScreenNotification}>
-                  {lang === 'bn' ? 'টেস্ট নোটিফিকেশন দেখুন' : 'Test Notification'}
-                </button>
               </div>
             )}
 
@@ -1790,17 +2203,10 @@ END:VCALENDAR`;
                 <div className="admin-reminder-actions">
                   <button
                     className="primary-small"
-                    style={{ background: '#ea580c', display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px' }}
+                    style={{ background: '#ea580c', display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px' }}
                     onClick={sendChadaReminderToUnpaid}
                   >
                     <Send size={13} /> {t.sendReminderToAll}
-                  </button>
-                  <button
-                    className="secondary-button"
-                    style={{ fontSize: 11, padding: '7px 12px', background: 'white' }}
-                    onClick={testMobileScreenNotification}
-                  >
-                    <Smartphone size={13} /> {t.testPushBtn}
                   </button>
                 </div>
               </section>
@@ -1823,16 +2229,42 @@ END:VCALENDAR`;
               }}
             >
               <div>
-                <span style={{ fontSize: 11, fontWeight: 700, color: currentUser.paid ? '#206b40' : '#e2136e' }}>
-                  {lang === 'bn' ? 'আমার মাসিক চাঁদা (চলতি মাস)' : 'My Monthly Chada (Current Month)'}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: currentUser.paid ? '#206b40' : '#e2136e' }}>
+                    {lang === 'bn' ? 'আমার মাসিক চাঁদা (চলতি মাস)' : 'My Monthly Chada (Current Month)'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTempLimitChoice(currentUser.monthlyCommitment || 1000);
+                      setCustomLimitInput('');
+                      setShowChangeLimitModal(true);
+                    }}
+                    style={{
+                      background: 'rgba(255,255,255,0.8)',
+                      border: '1px solid #e0b0c5',
+                      borderRadius: 8,
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: '#a00e4f',
+                      padding: '2px 7px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 3,
+                      cursor: 'pointer'
+                    }}
+                    title={lang === 'bn' ? 'মাসিক চাঁদার পরিমাণ পরিবর্তন করুন' : 'Change monthly limit'}
+                  >
+                    ✏️ {lang === 'bn' ? 'চাঁদা পরিবর্তন' : 'Change Limit'}
+                  </button>
+                </div>
                 <h3 style={{ margin: '4px 0', fontSize: 17, color: currentUser.paid ? '#195533' : '#a00e4f' }}>
                   {currentUser.paid ? (
                     <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <CheckCircle2 size={18} color="#25774a" /> {lang === 'bn' ? 'পরিশোধিত (৳১,০০০)' : 'Paid (৳1,000)'}
+                      <CheckCircle2 size={18} color="#25774a" /> {lang === 'bn' ? `পরিশোধিত (${fmt(currentUser.monthlyCommitment || 1000)})` : `Paid (${fmt(currentUser.monthlyCommitment || 1000)})`}
                     </span>
                   ) : (
-                    <span>{lang === 'bn' ? 'বাকি আছে (৳১,০০০)' : 'Unpaid (৳1,000)'}</span>
+                    <span>{lang === 'bn' ? `বাকি আছে (${fmt(currentUser.monthlyCommitment || 1000)})` : `Unpaid (${fmt(currentUser.monthlyCommitment || 1000)})`}</span>
                   )}
                 </h3>
                 <small style={{ color: '#665' }}>
@@ -1846,7 +2278,10 @@ END:VCALENDAR`;
                 <button
                   className="primary-small"
                   style={{ background: '#e2136e', padding: '10px 14px', borderRadius: 12, whiteSpace: 'nowrap' }}
-                  onClick={() => setTab('bkash-pay')}
+                  onClick={() => {
+                    setChadaAmountInput(String(currentUser.monthlyCommitment || 1000));
+                    setTab('bkash-pay');
+                  }}
                 >
                   <Smartphone size={16} /> {lang === 'bn' ? 'বিকাশে চাঁদা দিন' : 'Pay via bKash'}
                 </button>
@@ -2450,7 +2885,7 @@ END:VCALENDAR`;
                               {m.name} {m.id === currentUser?.id && <span style={{ color: '#a61f1f' }}>(আমি)</span>}
                             </strong>
                             <span>
-                              {m.phone} · <span className="role-badge">{m.role}</span>
+                              {m.phone} · <span className="role-badge">{m.role}</span> · <span style={{ fontSize: 10, color: '#7a5a3a' }}>মাসিক: {fmt(m.monthlyCommitment || 1000)}</span>
                             </span>
                             <small>
                               {isPaid
@@ -2461,7 +2896,7 @@ END:VCALENDAR`;
                             </small>
                           </div>
                           <div className="activity-end">
-                            <b>{fmt(1000)}</b>
+                            <b>{fmt(m.monthlyCommitment || 1000)}</b>
                             {isPaid ? (
                               <StatusBadge status="Confirmed" lang={lang} />
                             ) : pendingEntry ? (
@@ -2501,7 +2936,7 @@ END:VCALENDAR`;
                                     id: Date.now(),
                                     type: 'contribution',
                                     name: m.name,
-                                    amount: 1000,
+                                    amount: m.monthlyCommitment || 1000,
                                     day: '—',
                                     method: 'Cash',
                                     status: 'Confirmed',
@@ -2721,9 +3156,10 @@ END:VCALENDAR`;
                       <div className="person-avatar">{m.name.slice(0, 1)}</div>
                       <div className="activity-copy">
                         <strong>{m.name} {m.id === currentUser?.id && <span style={{ color: '#a61f1f' }}>(আমি)</span>}</strong>
-                        <span>{m.phone} · <span className="role-badge">{m.role}</span></span>
+                        <span>{m.phone} · <span className="role-badge">{m.role}</span> · <span style={{ fontSize: 10, color: '#7a5a3a' }}>মাসিক: {fmt(m.monthlyCommitment || 1000)}</span></span>
                       </div>
                       <div className="activity-end">
+                        <b style={{ marginRight: 6 }}>{fmt(m.monthlyCommitment || 1000)}</b>
                         {isPaidMonth ? (
                           <StatusBadge status="Confirmed" lang={lang} />
                         ) : (
@@ -2740,7 +3176,7 @@ END:VCALENDAR`;
                                 id: Date.now(),
                                 type: 'contribution',
                                 name: m.name,
-                                amount: 1000,
+                                amount: m.monthlyCommitment || 1000,
                                 day: '—',
                                 method: 'Cash',
                                 status: 'Confirmed',
@@ -3767,14 +4203,8 @@ END:VCALENDAR`;
                 </button>
               </div>
             ) : (
-              <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 14, padding: '8px 12px', marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11.5, color: '#166534' }}>
+              <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 14, padding: '10px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#166534', fontWeight: 600 }}>
                 <span>✅ {t.pushActiveBadge}</span>
-                <button
-                  style={{ background: 'white', border: '1px solid #86efac', color: '#15803d', fontSize: 10.5, fontWeight: 700, padding: '3px 8px', borderRadius: 8, cursor: 'pointer' }}
-                  onClick={testMobileScreenNotification}
-                >
-                  {lang === 'bn' ? 'স্ক্রিনে টেস্ট দেখুন' : 'Test on Screen'}
-                </button>
               </div>
             )}
 
@@ -3819,7 +4249,29 @@ END:VCALENDAR`;
               <div>
                 <h2>{currentUser.name}</h2>
                 <p>{currentUser.phone}</p>
-                <span className="role-badge">{role} (Volunteer Privileges)</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                  <span className="role-badge">{role} (Volunteer Privileges)</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTempLimitChoice(currentUser.monthlyCommitment || 1000);
+                      setCustomLimitInput('');
+                      setShowChangeLimitModal(true);
+                    }}
+                    style={{
+                      background: '#fff0f3',
+                      border: '1px solid #fbcfe8',
+                      borderRadius: 6,
+                      color: '#9d174d',
+                      fontSize: 10.5,
+                      fontWeight: 700,
+                      padding: '2px 6px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    চাঁদা: {fmt(currentUser.monthlyCommitment || 1000)}/মাস (পরিবর্তন)
+                  </button>
+                </div>
               </div>
               <button
                 className="action-icon-btn danger-btn"
@@ -3831,6 +4283,16 @@ END:VCALENDAR`;
             </div>
 
             <div className="settings-list">
+              <Setting
+                icon={<CircleDollarSign />}
+                label={lang === 'bn' ? 'আমার মাসিক চাঁদার লক্ষ্য' : 'My Monthly Chada Limit'}
+                detail={lang === 'bn' ? `বর্তমানে নির্ধারিত: ${fmt(currentUser.monthlyCommitment || 1000)} প্রতি মাসে (পরিবর্তন করতে চাপুন)` : `Current: ${fmt(currentUser.monthlyCommitment || 1000)}/mo (Click to edit)`}
+                onClick={() => {
+                  setTempLimitChoice(currentUser.monthlyCommitment || 1000);
+                  setCustomLimitInput('');
+                  setShowChangeLimitModal(true);
+                }}
+              />
               <Setting
                 icon={<Smartphone />}
                 label={t.payChadaBkash}
@@ -4689,6 +5151,85 @@ END:VCALENDAR`;
             <button className="primary-button" onClick={publishAnnouncement}>
               <Megaphone size={18} /> {lang === 'bn' ? 'ঘোষণা প্রচার করুন' : 'Publish Announcement'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ===================== MODAL: CHANGE MONTHLY LIMIT ===================== */}
+      {showChangeLimitModal && currentUser && (
+        <div className="limit-modal-backdrop" onClick={() => setShowChangeLimitModal(false)}>
+          <div className="limit-modal-card" onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <h3 style={{ margin: 0, color: '#8d1717', fontSize: 17, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <HandCoins size={18} /> {lang === 'bn' ? 'মাসিক চাঁদার পরিমাণ পরিবর্তন' : 'Change Monthly Contribution'}
+              </h3>
+              <button
+                onClick={() => setShowChangeLimitModal(false)}
+                style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', padding: 4 }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <p style={{ fontSize: 12, color: '#6d5a4c', lineHeight: 1.5, margin: '0 0 14px' }}>
+              {lang === 'bn'
+                ? 'আপনি প্রতি মাসে কত টাকা চাঁদা দিতে চান তা নির্বাচন করুন। আপনার নির্বাচিত চাঁদার পরিমাণ অনুযায়ী আপনার ড্যাশবোর্ড ও বকেয়া হিসাব প্রদর্শিত হবে।'
+                : 'Select how much you want to contribute each month. Your dashboard, dues, and payment suggestions will reflect this amount.'}
+            </p>
+
+            <label style={{ fontSize: 12, fontWeight: 700, color: '#4a3d33', display: 'block', marginBottom: 6 }}>
+              {lang === 'bn' ? 'দ্রুত পরিমাণ নির্বাচন করুন:' : 'Select Amount:'}
+            </label>
+
+            <div className="monthly-choice-grid">
+              {[500, 1000, 1500, 2000, 3000, 5000].map(amt => (
+                <button
+                  key={amt}
+                  type="button"
+                  className={`monthly-choice-pill ${tempLimitChoice === amt && !customLimitInput ? 'active' : ''}`}
+                  onClick={() => {
+                    setTempLimitChoice(amt);
+                    setCustomLimitInput('');
+                  }}
+                >
+                  ৳{toBnDigits(amt.toLocaleString())}
+                </button>
+              ))}
+            </div>
+
+            <label style={{ fontSize: 12, fontWeight: 700, color: '#4a3d33', display: 'block', marginBottom: 6 }}>
+              {lang === 'bn' ? 'অথবা কাস্টম টাকার পরিমাণ:' : 'Or custom amount (BDT):'}
+            </label>
+            <input
+              className="field"
+              value={customLimitInput}
+              onChange={e => setCustomLimitInput(e.target.value.replace(/[^0-9]/g, ''))}
+              placeholder={lang === 'bn' ? 'যেমন: ২৫০০' : 'e.g. 2500'}
+              inputMode="numeric"
+              style={{ marginBottom: 16 }}
+            />
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                type="button"
+                className="secondary-button"
+                style={{ flex: 1, padding: 11 }}
+                onClick={() => setShowChangeLimitModal(false)}
+              >
+                {lang === 'bn' ? 'বাতিল' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                className="primary-button"
+                style={{ flex: 1, margin: 0, padding: 11 }}
+                onClick={() => {
+                  const finalAmt = customLimitInput ? (Number(customLimitInput) || 1000) : tempLimitChoice;
+                  updateUserCommitment(finalAmt);
+                }}
+              >
+                {lang === 'bn' ? 'সংরক্ষণ করুন' : 'Save Changes'}
+              </button>
+            </div>
           </div>
         </div>
       )}

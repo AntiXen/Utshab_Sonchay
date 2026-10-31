@@ -242,6 +242,8 @@ export const subscribeToUsers = (
           role: d.role === 'admin' ? 'Admin' : 'Member',
           paid: Boolean(d.paid),
           active: d.active !== false,
+          monthlyCommitment: Number(d.monthlyCommitment) || 1000,
+          password: d.password || '',
         };
       });
       if (liveUsers.length > 0) {
@@ -255,7 +257,7 @@ export const subscribeToUsers = (
   );
 };
 
-// Record audit log entry in cloud
+// Record user to cloud
 export const saveUserToFirestore = async (user: User): Promise<void> => {
   if (!isLiveBackend() || !db) return;
   const userDocRef = doc(db, 'users', `user_${user.id}`);
@@ -267,7 +269,27 @@ export const saveUserToFirestore = async (user: User): Promise<void> => {
     role: user.role === 'Admin' ? 'admin' : 'member',
     paid: user.paid,
     active: user.active,
+    monthlyCommitment: user.monthlyCommitment || 1000,
+    password: user.password || '',
     createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+};
+
+export const updateUserPasswordInFirestore = async (userId: number, newPassword: string): Promise<void> => {
+  if (!isLiveBackend() || !db) return;
+  const userDocRef = doc(db, 'users', `user_${userId}`);
+  await updateDoc(userDocRef, {
+    password: newPassword,
+    updatedAt: serverTimestamp(),
+  });
+};
+
+export const updateUserCommitmentInFirestore = async (userId: number, monthlyCommitment: number): Promise<void> => {
+  if (!isLiveBackend() || !db) return;
+  const userDocRef = doc(db, 'users', `user_${userId}`);
+  await updateDoc(userDocRef, {
+    monthlyCommitment,
     updatedAt: serverTimestamp(),
   });
 };
