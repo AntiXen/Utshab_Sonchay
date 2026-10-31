@@ -1,0 +1,17 @@
+{
+  "name": "উৎসব সঞ্চয় (Utsab Sonchay)",
+  "short_name": "উৎসব সঞ্চয়",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fff8ec",
+  "theme_color": "#a61f1f",
+  "description": "উৎসব সঞ্চয় — পূজা চাঁদা, প্রণামী ও খরচ তহবিল ব্যবস্থাপনা",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
