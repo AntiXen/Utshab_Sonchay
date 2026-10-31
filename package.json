@@ -1,5 +1,5 @@
 {
-  "name": "puja-fund",
+  "name": "utsab-sonchay",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -26,5 +26,8 @@
     "autoprefixer": "^10.4.20",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1"
+  },
+  "overrides": {
+    "vite": "$vite"
   }
 }

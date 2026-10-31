@@ -256,6 +256,22 @@ export const subscribeToUsers = (
 };
 
 // Record audit log entry in cloud
+export const saveUserToFirestore = async (user: User): Promise<void> => {
+  if (!isLiveBackend() || !db) return;
+  const userDocRef = doc(db, 'users', `user_${user.id}`);
+  await setDoc(userDocRef, {
+    id: user.id,
+    displayName: user.name,
+    name: user.name,
+    phone: user.phone,
+    role: user.role === 'Admin' ? 'admin' : 'member',
+    paid: user.paid,
+    active: user.active,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+};
+
 export const logCloudAudit = async (
   actor: string,
   action: string,

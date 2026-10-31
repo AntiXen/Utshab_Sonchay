@@ -57,6 +57,7 @@ import {
   saveBillToFirestore,
   updateBillStatusInFirestore,
   payBillInFirestore,
+  saveUserToFirestore,
 } from './services/backendService';
 
 export type Tab =
@@ -143,14 +144,8 @@ export interface MerchantTransaction {
   status: 'Unclaimed' | 'Claimed';
 }
 
-// Initial Seed Users (Only 2 Roles: Admin and Member)
-const defaultUsers: User[] = [
-  { id: 1, name: 'রাকিব উদ্দিন (Admin)', phone: '01712345678', role: 'Admin', password: '123', paid: true, active: true },
-  { id: 2, name: 'সুমন সরকার', phone: '01819876543', role: 'Member', password: '123', paid: false, active: true },
-  { id: 3, name: 'কার্তিক ঘোষ', phone: '01711112233', role: 'Member', password: '123', paid: false, active: true },
-  { id: 4, name: 'মোঃ করিম', phone: '01822334455', role: 'Member', password: '123', paid: true, active: true },
-  { id: 5, name: 'অনন্যা রায়', phone: '01733998877', role: 'Member', password: '123', paid: false, active: true },
-];
+// Initial Seed Users (Clean State: Empty initially for production)
+const defaultUsers: User[] = [];
 
 export interface PujaMonth {
   id: string; // e.g. '2026-10'
@@ -175,56 +170,16 @@ export const PUJA_CYCLE_MONTHS: PujaMonth[] = [
   { id: '2025-11', nameBn: 'নভেম্বর ২০২৫ (কার্তিক)', nameEn: 'November 2025', shortBn: 'নভেম্বর ২০২৫', shortEn: 'Nov 2025' },
 ];
 
-const defaultIncome: Income[] = [
-  // অক্টোবর ২০২৬ (চলতি মাস)
-  { id: 1, type: 'contribution', name: 'রাকিব উদ্দিন (Admin)', amount: 1000, day: '—', method: 'Cash', status: 'Confirmed', date: 'আজ', createdBy: 'Admin', month: '2026-10' },
-  { id: 2, type: 'contribution', name: 'মোঃ করিম', amount: 1000, day: '—', method: 'bKash', status: 'Confirmed', date: 'আজ', createdBy: 'System', trxId: 'BK7X1099', month: '2026-10' },
-  // সেপ্টেম্বর ২০২৬
-  { id: 6, type: 'contribution', name: 'রাকিব উদ্দিন (Admin)', amount: 1000, day: '—', method: 'Cash', status: 'Confirmed', date: '১ মাস আগে', createdBy: 'Admin', month: '2026-09' },
-  { id: 7, type: 'contribution', name: 'সুমন সরকার', amount: 1000, day: '—', method: 'bKash', status: 'Confirmed', date: '১ মাস আগে', createdBy: 'System', trxId: 'BK8Y9921', month: '2026-09' },
-  { id: 8, type: 'contribution', name: 'কার্তিক ঘোষ', amount: 1000, day: '—', method: 'Cash', status: 'Confirmed', date: '১ মাস আগে', createdBy: 'Admin', month: '2026-09' },
-  // আগস্ট ২০২৬
-  { id: 9, type: 'contribution', name: 'অনন্যা রায়', amount: 1000, day: '—', method: 'bKash', status: 'Confirmed', date: '২ মাস আগে', createdBy: 'System', trxId: 'BK2W7711', month: '2026-08' },
-  { id: 10, type: 'contribution', name: 'মোঃ করিম', amount: 1000, day: '—', method: 'Cash', status: 'Confirmed', date: '২ মাস আগে', createdBy: 'Admin', month: '2026-08' },
-  // জুলাই ২০২৬
-  { id: 11, type: 'contribution', name: 'রাকিব উদ্দিন (Admin)', amount: 1000, day: '—', method: 'Cash', status: 'Confirmed', date: '৩ মাস আগে', createdBy: 'Admin', month: '2026-07' },
-  { id: 12, type: 'contribution', name: 'সুমন সরকার', amount: 1000, day: '—', method: 'Cash', status: 'Confirmed', date: '৩ মাস আগে', createdBy: 'Admin', month: '2026-07' },
-  // জুন ২০২৬
-  { id: 13, type: 'contribution', name: 'রাকিব উদ্দিন (Admin)', amount: 1000, day: '—', method: 'Cash', status: 'Confirmed', date: '৪ মাস আগে', createdBy: 'Admin', month: '2026-06' },
-  { id: 14, type: 'contribution', name: 'কার্তিক ঘোষ', amount: 1000, day: '—', method: 'bKash', status: 'Confirmed', date: '৪ মাস আগে', createdBy: 'System', trxId: 'BK9Z4412', month: '2026-06' },
-  // মে ২০২৬
-  { id: 15, type: 'contribution', name: 'মোঃ করিম', amount: 1000, day: '—', method: 'Cash', status: 'Confirmed', date: '৫ মাস আগে', createdBy: 'Admin', month: '2026-05' },
-  { id: 16, type: 'contribution', name: 'অনন্যা রায়', amount: 1000, day: '—', method: 'bKash', status: 'Confirmed', date: '৫ মাস আগে', createdBy: 'System', trxId: 'BK3V8899', month: '2026-05' },
-  // প্রণামী
-  { id: 3, type: 'pronami', name: 'অজ্ঞাতনামা', amount: 5000, day: 'অষ্টমী', method: 'Cash', status: 'Confirmed', date: 'গতকাল', createdBy: 'Member', month: '2026-10' },
-  { id: 4, type: 'pronami', name: 'মিতা পাল', amount: 1000, day: 'সপ্তমী', method: 'bKash', status: 'Pending', date: 'গতকাল', createdBy: 'Member', senderPhone: '01711223344', month: '2026-10' },
-  { id: 5, type: 'pronami', name: 'অমিত চৌধুরী', amount: 2500, day: 'নবমী', method: 'Nagad', status: 'Confirmed', date: '৩ দিন আগে', createdBy: 'Admin', month: '2026-10' },
-];
+const defaultIncome: Income[] = [];
 
-const defaultBills: Bill[] = [
-  { id: 1, vendor: 'মেসার্স শাপলা ডেকোরেটর', description: 'প্যান্ডেল ও আলোকসজ্জা', category: 'সাজসজ্জা', total: 35000, paid: 15000, status: 'Approved', requester: 'সুমন সরকার', type: 'Advance', dueDate: '2027-10-10' },
-  { id: 2, vendor: 'মা দুর্গা মৃৎশিল্প', description: 'প্রতিমা নির্মাণ ও মাটি কাজ', category: 'প্রতিমা', total: 30000, paid: 10000, status: 'Approved', requester: 'কার্তিক ঘোষ', type: 'Advance', dueDate: '2027-10-05' },
-  { id: 3, vendor: 'রামকৃষ্ণ ভাণ্ডার', description: 'ভোগ ও ফলমূল সামগ্রী', category: 'ভোগ / খাবার', total: 12000, paid: 0, status: 'Pending', requester: 'অনন্যা রায়', type: 'Reimbursement', dueDate: '2027-10-18' },
-  { id: 4, vendor: 'সুরঝংকার সাউন্ড', description: 'মাইক ও সাউন্ড সিস্টেম', category: 'সাউন্ড / লাইট', total: 18000, paid: 0, status: 'Pending', requester: 'রাকিব উদ্দিন', type: 'Advance', dueDate: '2027-10-15' },
-];
+const defaultBills: Bill[] = [];
 
-const defaultNotifications: AppNotification[] = [
-  { id: 1, title: 'মাসিক চাঁদার রিমাইন্ডার', body: 'চলতি মাসের চাঁদা (৳১,০০০) বিকাশের মাধ্যমে সহজে জমা দিন।', color: 'orange', read: false, time: 'আজ' },
-  { id: 2, title: 'নতুন খরচের আবেদন', body: 'রামকৃষ্ণ ভাণ্ডার থেকে ভোগ সামগ্রীর আবেদন অনুমোদনের অপেক্ষায়।', color: 'red', read: false, time: '২ ঘণ্টা আগে' },
-  { id: 3, title: 'আসন্ন পূজার দিন গণনা', body: 'মহাসমারোহে শারদীয় দুর্গাপূজা উদযাপনের প্রস্তুতি চলছে।', color: 'gold', read: false, time: 'গতকাল' },
-  { id: 4, title: 'সাধারণ সভা আহ্বান', body: 'এই রবিবার সন্ধ্যা ৭টায় মণ্ডপ প্রাঙ্গণে জরুরি সাধারণ সভা অনুষ্ঠিত হবে।', color: 'green', read: true, time: '৩ দিন আগে' },
-];
+const defaultNotifications: AppNotification[] = [];
 
-// Pre-seeded Merchant Account Transactions
-const defaultMerchantTransactions: MerchantTransaction[] = [
-  { id: '1', trxId: 'BK7X1099', amount: 1000, sender: '01822334455', date: '2026-10-29 11:30', claimedBy: 'মোঃ করিম', status: 'Claimed' },
-  { id: '2', trxId: 'BK8Y9921', amount: 1000, sender: '01819876543', date: '2026-10-29 14:15', status: 'Unclaimed' },
-  { id: '3', trxId: 'BK9Z4412', amount: 1000, sender: '01711112233', date: '2026-10-29 15:00', status: 'Unclaimed' },
-  { id: '4', trxId: 'BK2W7711', amount: 2000, sender: '01733998877', date: '2026-10-28 18:20', status: 'Unclaimed' },
-];
+const defaultMerchantTransactions: MerchantTransaction[] = [];
 
-const COMMITTEE_BKASH_NUMBER = '01712-345678';
-const COMMITTEE_NAGAD_NUMBER = '01819-876543';
+const COMMITTEE_BKASH_NUMBER = '01623919385';
+const COMMITTEE_NAGAD_NUMBER = '01623919385';
 
 // Helper to convert English digits to Bengali
 const toBnDigits = (n: number | string): string => {
@@ -345,18 +300,18 @@ export default function App() {
   const [users, setUsers] = useState<User[]>(() => {
     try {
       const saved = localStorage.getItem('puja_fund_users');
-      return saved ? JSON.parse(saved) : defaultUsers;
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return defaultUsers;
+      return [];
     }
   });
 
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
       const saved = localStorage.getItem('puja_fund_current_user');
-      return saved ? JSON.parse(saved) : defaultUsers[0]; // Default logged-in as Admin for instant test
+      return saved ? JSON.parse(saved) : null;
     } catch {
-      return defaultUsers[0];
+      return null;
     }
   });
 
@@ -364,45 +319,38 @@ export default function App() {
     try {
       const saved = localStorage.getItem('puja_fund_income');
       if (saved) {
-        const parsed = JSON.parse(saved) as Income[];
-        if (parsed.length <= 5) {
-          return defaultIncome;
-        }
-        return parsed.map(item => ({
-          ...item,
-          month: item.month || '2026-10'
-        }));
+        return JSON.parse(saved) as Income[];
       }
-      return defaultIncome;
+      return [];
     } catch {
-      return defaultIncome;
+      return [];
     }
   });
 
   const [bills, setBills] = useState<Bill[]>(() => {
     try {
       const saved = localStorage.getItem('puja_fund_bills');
-      return saved ? JSON.parse(saved) : defaultBills;
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return defaultBills;
+      return [];
     }
   });
 
   const [notifications, setNotifications] = useState<AppNotification[]>(() => {
     try {
       const saved = localStorage.getItem('puja_fund_notifications');
-      return saved ? JSON.parse(saved) : defaultNotifications;
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return defaultNotifications;
+      return [];
     }
   });
 
   const [merchantLedger, setMerchantLedger] = useState<MerchantTransaction[]>(() => {
     try {
       const saved = localStorage.getItem('puja_fund_merchant_ledger');
-      return saved ? JSON.parse(saved) : defaultMerchantTransactions;
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return defaultMerchantTransactions;
+      return [];
     }
   });
 
@@ -421,6 +369,25 @@ export default function App() {
   useEffect(() => { localStorage.setItem('puja_fund_notifications', JSON.stringify(notifications)); }, [notifications]);
   useEffect(() => { localStorage.setItem('puja_fund_merchant_ledger', JSON.stringify(merchantLedger)); }, [merchantLedger]);
 
+  // One-time auto-wipe of legacy demo data from browser storage for production clean start
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !localStorage.getItem('utsab_sonchay_v2_clean')) {
+      localStorage.removeItem('puja_fund_users');
+      localStorage.removeItem('puja_fund_current_user');
+      localStorage.removeItem('puja_fund_income');
+      localStorage.removeItem('puja_fund_bills');
+      localStorage.removeItem('puja_fund_notifications');
+      localStorage.removeItem('puja_fund_merchant_ledger');
+      localStorage.setItem('utsab_sonchay_v2_clean', 'true');
+      setUsers([]);
+      setCurrentUser(null);
+      setIncome([]);
+      setBills([]);
+      setNotifications([]);
+      setMerchantLedger([]);
+    }
+  }, []);
+
   const t = translations[lang] as Record<string, any>;
   const role: MemberRole = currentUser ? currentUser.role : 'Member';
 
@@ -430,7 +397,7 @@ export default function App() {
   const [addMenu, setAddMenu] = useState(false);
 
   // Auth Form State
-  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>(() => users.length === 0 ? 'signup' : 'login');
   const [authPhone, setAuthPhone] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authName, setAuthName] = useState('');
@@ -463,7 +430,7 @@ export default function App() {
   // bKash & Nagad Chada Payment & Verification Screen state
   const [chadaMethod, setChadaMethod] = useState<'bKash' | 'Nagad'>('bKash');
   const [chadaAmountInput, setChadaAmountInput] = useState('1000');
-  const [verifyPhone, setVerifyPhone] = useState(currentUser?.phone || '01819876543');
+  const [verifyPhone, setVerifyPhone] = useState(currentUser?.phone || '');
   const [inputTrxId, setInputTrxId] = useState('');
   const [verificationResult, setVerificationResult] = useState<{ success: boolean; message: string; receipt?: any } | null>(null);
   const [copiedAccount, setCopiedAccount] = useState<'bKash' | 'Nagad' | null>(null);
@@ -928,23 +895,32 @@ export default function App() {
       return;
     }
 
+    // First person signed up is the Admin; everyone else is a Member
+    const isFirstUser = users.length === 0 || !users.some(u => u.role === 'Admin');
+    const assignedRole: MemberRole = isFirstUser ? 'Admin' : 'Member';
+
     const newUser: User = {
       id: Date.now(),
       name: authName.trim(),
       phone: authPhone.trim(),
-      role: 'Member', // Always member, acts as volunteer by default
+      role: assignedRole,
       password: authPassword || '123',
       paid: false,
       active: true
     };
 
     setUsers(prev => [...prev, newUser]);
+    saveUserToFirestore(newUser).catch(err => console.warn('Cloud save user failed:', err));
     setCurrentUser(newUser);
     setVerifyPhone(newUser.phone);
     setAuthName('');
     setAuthPhone('');
     setAuthPassword('');
-    notify(lang === 'bn' ? 'সদস্য নিবন্ধন সফল হয়েছে!' : 'Registration successful!');
+    if (isFirstUser) {
+      notify(lang === 'bn' ? '🎉 অভিনন্দন! আপনি প্রথম ব্যক্তি হিসেবে প্রধান অ্যাডমিন (Admin) ক্ষমতা পেয়েছেন।' : '🎉 Congratulations! You are registered as the Main Admin.');
+    } else {
+      notify(lang === 'bn' ? 'সদস্য নিবন্ধন সফল হয়েছে!' : 'Registration successful!');
+    }
   };
 
   const handleLogout = () => {
@@ -954,7 +930,11 @@ export default function App() {
   };
 
   const quickDemoLogin = (asRole: MemberRole) => {
-    const demo = users.find(u => u.role === asRole) || (asRole === 'Admin' ? defaultUsers[0] : defaultUsers[1]);
+    const demo = users.find(u => u.role === asRole);
+    if (!demo) {
+      notify(lang === 'bn' ? `কোনো ${asRole} অ্যাকাউন্ট পাওয়া যায়নি। আগে সাইন-আপ করুন।` : `No ${asRole} account found yet. Please sign up.`);
+      return;
+    }
     setCurrentUser(demo);
     setVerifyPhone(demo.phone);
     notify(lang === 'bn' ? `${demo.name} হিসেবে লগইন সম্পন্ন` : `Logged in as ${demo.name}`);
@@ -1059,7 +1039,7 @@ export default function App() {
       id: String(Date.now()),
       trxId: mockTrx,
       amount: 1000,
-      sender: currentUser?.phone || '01819876543',
+      sender: currentUser?.phone || '01623919385',
       date: new Date().toISOString().slice(0, 16).replace('T', ' '),
       status: 'Unclaimed'
     };
@@ -1067,17 +1047,18 @@ export default function App() {
     notify(lang === 'bn' ? `স্টেটমেন্টে টেস্ট এন্ট্রি তৈরি হয়েছে: ${mockTrx}` : `Test entry added: ${mockTrx}`);
   };
 
-  // Reset demo data to defaults
+  // Reset demo data to clean state
   const resetAllData = () => {
-    if (window.confirm(t.resetConfirm)) {
-      setUsers(defaultUsers);
-      setCurrentUser(defaultUsers[0]);
-      setIncome(defaultIncome);
-      setBills(defaultBills);
-      setNotifications(defaultNotifications);
-      setMerchantLedger(defaultMerchantTransactions);
+    if (window.confirm(lang === 'bn' ? 'আপনি কি সমস্ত ডাটা মুছে সম্পূর্ণ ফ্রেশ শুরু করতে চান?' : 'Reset all data to clean state?')) {
+      setUsers([]);
+      setCurrentUser(null);
+      setIncome([]);
+      setBills([]);
+      setNotifications([]);
+      setMerchantLedger([]);
       localStorage.clear();
-      notify(lang === 'bn' ? 'সব ডেমো তথ্য রিসেট করা হয়েছে' : 'Demo data reset to default');
+      localStorage.setItem('utsab_sonchay_v2_clean', 'true');
+      notify(lang === 'bn' ? 'সব তথ্য মুছে ফ্রেশ করা হয়েছে' : 'All data reset to clean state');
     }
   };
 
@@ -1434,10 +1415,11 @@ END:VCALENDAR`;
 
   // Copy Payment Account Number
   const copyPaymentNumber = (method: 'bKash' | 'Nagad', num: string) => {
-    navigator.clipboard?.writeText(num);
+    const cleanDigits = num.replace(/[^0-9]/g, '');
+    navigator.clipboard?.writeText(cleanDigits);
     setCopiedAccount(method);
     setTimeout(() => setCopiedAccount(null), 2200);
-    notify(lang === 'bn' ? `${method} নম্বর (${num}) কপি করা হয়েছে!` : `${method} number copied!`);
+    notify(lang === 'bn' ? `${method} নম্বর (${cleanDigits}) কপি করা হয়েছে!` : `${method} number copied!`);
   };
 
   // Bottom Navigation config
@@ -1569,12 +1551,23 @@ END:VCALENDAR`;
                   required
                 />
 
-                <div className="info-note" style={{ marginTop: 14 }}>
-                  <ShieldCheck size={16} />{' '}
-                  {lang === 'bn'
-                    ? 'নিবন্ধিত সকল সদস্য স্বেচ্ছাসেবী (Volunteer) হিসেবে দায়িত্ব পালন করতে পারবেন।'
-                    : 'All registered members automatically receive volunteer privileges.'}
-                </div>
+                {users.length === 0 ? (
+                  <div className="info-note" style={{ marginTop: 14, background: '#fef3c7', borderColor: '#f59e0b', color: '#92400e' }}>
+                    <ShieldCheck size={18} />{' '}
+                    <span>
+                      {lang === 'bn'
+                        ? 'প্রথম নিবন্ধিত ব্যক্তি স্বয়ংক্রিয়ভাবে প্রধান অ্যাডমিন (Admin) ক্ষমতা পাবেন।'
+                        : 'First person to register will automatically become the Main Admin.'}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="info-note" style={{ marginTop: 14 }}>
+                    <ShieldCheck size={16} />{' '}
+                    {lang === 'bn'
+                      ? 'নিবন্ধিত সকল সদস্য স্বেচ্ছাসেবী (Volunteer) হিসেবে দায়িত্ব পালন করতে পারবেন।'
+                      : 'All registered members automatically receive volunteer privileges.'}
+                  </div>
+                )}
 
                 <button type="submit" className="primary-button">
                   <UserPlus size={18} /> {t.signup}
@@ -1590,26 +1583,28 @@ END:VCALENDAR`;
               </form>
             )}
 
-            {/* Quick Demo Login Grid for testing */}
-            <div className="demo-login-box">
-              <span>{t.quickDemoLogin}</span>
-              <div className="demo-btn-grid">
-                <button
-                  type="button"
-                  className="demo-btn admin"
-                  onClick={() => quickDemoLogin('Admin')}
-                >
-                  <ShieldCheck size={14} /> {t.demoAdminLogin}
-                </button>
-                <button
-                  type="button"
-                  className="demo-btn member"
-                  onClick={() => quickDemoLogin('Member')}
-                >
-                  <Users size={14} /> {t.demoMemberLogin}
-                </button>
+            {/* Quick Demo Login Grid (only when accounts exist) */}
+            {users.length > 0 && (
+              <div className="demo-login-box">
+                <span>{t.quickDemoLogin}</span>
+                <div className="demo-btn-grid">
+                  <button
+                    type="button"
+                    className="demo-btn admin"
+                    onClick={() => quickDemoLogin('Admin')}
+                  >
+                    <ShieldCheck size={14} /> {t.demoAdminLogin}
+                  </button>
+                  <button
+                    type="button"
+                    className="demo-btn member"
+                    onClick={() => quickDemoLogin('Member')}
+                  >
+                    <Users size={14} /> {t.demoMemberLogin}
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
 
