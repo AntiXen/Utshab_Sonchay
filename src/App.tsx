@@ -64,6 +64,7 @@ import {
   updateUserPasswordInFirestore,
   updateUserCommitmentInFirestore,
 } from './services/backendService';
+import { sendPhoneOtpSms, clearRecaptcha, type ConfirmationResult } from './firebase';
 
 export type Tab =
   | 'home'
@@ -412,6 +413,15 @@ export default function App() {
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [authMonthlyCommitment, setAuthMonthlyCommitment] = useState(1000);
   const [customCommitmentInput, setCustomCommitmentInput] = useState('');
+
+  // Firebase Real SMS Auth State
+  const [signupConfirmation, setSignupConfirmation] = useState<ConfirmationResult | null>(null);
+  const [forgotConfirmation, setForgotConfirmation] = useState<ConfirmationResult | null>(null);
+  const [isSmsSending, setIsSmsSending] = useState(false);
+  const [signupSmsSent, setSignupSmsSent] = useState(false);
+  const [signupSmsError, setSignupSmsError] = useState('');
+  const [forgotSmsSent, setForgotSmsSent] = useState(false);
+  const [forgotSmsError, setForgotSmsError] = useState('');
 
   // Signup OTP verification state
   const [signupStep, setSignupStep] = useState<'form' | 'otp'>('form');
@@ -908,8 +918,8 @@ export default function App() {
     notify(lang === 'bn' ? `স্বাগতম, ${user.name}!` : `Welcome, ${user.name}!`);
   };
 
-  // Step 1 of Signup: Send OTP
-  const handleInitiateSignup = (e: React.FormEvent) => {
+  // Step 1 of Signup: Send OTP (Dispatches real SMS via Firebase Phone Auth with fallback)
+  const handleInitiateSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!authName.trim()) {
       notify(lang === 'bn' ? 'আপনার নাম লিখুন' : 'Enter your name');
@@ -929,21 +939,66 @@ export default function App() {
       return;
     }
 
-    // Generate 6-digit OTP code
-    const generatedCode = String(Math.floor(100000 + Math.random() * 900000));
-    setGeneratedSignupOtp(generatedCode);
+    // Generate fallback testing OTP
+    const fallbackCode = String(Math.floor(100000 + Math.random() * 900000));
+    setGeneratedSignupOtp(fallbackCode);
     setSignupOtpInput('');
+    setIsSmsSending(true);
+
+    // Attempt real SMS dispatch via Firebase Phone Auth
+    const res = await sendPhoneOtpSms(authPhone);
+    setIsSmsSending(false);
+
+    if (res.success && res.confirmationResult) {
+      setSignupConfirmation(res.confirmationResult);
+      setSignupSmsSent(true);
+      setSignupSmsError('');
+      notify(lang === 'bn' ? `📱 ${res.formattedPhone} নম্বরে SMS পাঠানো হয়েছে!` : `SMS sent to ${res.formattedPhone}!`);
+    } else {
+      setSignupConfirmation(null);
+      setSignupSmsSent(false);
+      let errorMsg = '';
+      if (res.error?.includes('operation-not-allowed')) {
+        errorMsg = lang === 'bn'
+          ? 'Firebase Console-এ Phone Sign-in সক্রিয় করা নেই। তাই টেস্টিং কোড নিচে দেওয়া হলো:'
+          : 'Phone Sign-in not enabled in Firebase Console. Using testing OTP below:';
+      } else if (res.error?.includes('unauthorized-domain')) {
+        errorMsg = lang === 'bn'
+          ? 'এই ডোমেইনটি Firebase Console-এ অনুমোদিত নয়। তাই টেস্টিং কোড দেওয়া হলো:'
+          : 'Domain not authorized in Firebase Console. Using testing OTP:';
+      } else {
+        errorMsg = lang === 'bn'
+          ? `সরাসরি SMS পাঠানো যায়নি (${res.error || 'নেটওয়ার্ক ত্রুটি'})। বিকল্প টেস্টিং কোড নিচে দেওয়া হলো:`
+          : `SMS delivery failed (${res.error}). Please use the testing code below:`;
+      }
+      setSignupSmsError(errorMsg);
+      notify(lang === 'bn' ? 'SMS পাঠানো যায়নি, টেস্টিং কোড দেওয়া হয়েছে' : 'Could not send SMS, using fallback OTP');
+    }
+
     setSignupStep('otp');
     setOtpTimer(60);
-    notify(lang === 'bn' ? `যাচাইকরণ ওটিপি কোড পাঠানো হয়েছে` : `Verification OTP code generated`);
   };
 
   // Step 2 of Signup: Verify OTP and Register Account
-  const handleVerifySignupOtp = (e: React.FormEvent) => {
+  const handleVerifySignupOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (signupOtpInput.trim() !== generatedSignupOtp) {
-      notify(lang === 'bn' ? 'ভুল ওটিপি কোড! অনুগ্রহ করে সঠিক ৬ ডিজিটের কোড দিন।' : 'Incorrect OTP code! Please enter the 6-digit code.');
-      return;
+    const cleanInput = signupOtpInput.trim();
+
+    // Verify real Firebase SMS OTP if active
+    if (signupConfirmation) {
+      try {
+        await signupConfirmation.confirm(cleanInput);
+      } catch (err: any) {
+        if (cleanInput !== generatedSignupOtp) {
+          notify(lang === 'bn' ? 'ভুল ওটিপি কোড! অনুগ্রহ করে আপনার মোবাইলে আসা ৬ ডিজিটের SMS কোড দিন।' : 'Incorrect OTP! Please check the 6-digit SMS code on your phone.');
+          return;
+        }
+      }
+    } else {
+      if (cleanInput !== generatedSignupOtp) {
+        notify(lang === 'bn' ? 'ভুল ওটিপি কোড! অনুগ্রহ করে সঠিক ৬ ডিজিটের কোড দিন।' : 'Incorrect OTP code! Please enter the 6-digit code.');
+        return;
+      }
     }
 
     const cleanPhone = authPhone.trim().replace(/[^0-9]/g, '');
@@ -975,6 +1030,8 @@ export default function App() {
     setSignupStep('form');
     setSignupOtpInput('');
     setCustomCommitmentInput('');
+    setSignupConfirmation(null);
+    clearRecaptcha();
 
     if (isFirstUser) {
       notify(lang === 'bn' ? '🎉 অভিনন্দন! আপনি প্রথম ব্যক্তি হিসেবে প্রধান অ্যাডমিন (Admin) ক্ষমতা পেয়েছেন।' : '🎉 Congratulations! You are registered as the Main Admin.');
@@ -983,15 +1040,29 @@ export default function App() {
     }
   };
 
-  const handleResendSignupOtp = () => {
-    const generatedCode = String(Math.floor(100000 + Math.random() * 900000));
-    setGeneratedSignupOtp(generatedCode);
+  const handleResendSignupOtp = async () => {
+    const fallbackCode = String(Math.floor(100000 + Math.random() * 900000));
+    setGeneratedSignupOtp(fallbackCode);
     setOtpTimer(60);
-    notify(lang === 'bn' ? 'নতুন ওটিপি কোড পাঠানো হয়েছে!' : 'New OTP code sent!');
+    setIsSmsSending(true);
+
+    const res = await sendPhoneOtpSms(authPhone);
+    setIsSmsSending(false);
+
+    if (res.success && res.confirmationResult) {
+      setSignupConfirmation(res.confirmationResult);
+      setSignupSmsSent(true);
+      setSignupSmsError('');
+      notify(lang === 'bn' ? 'আপনার মোবাইলে নতুন SMS পাঠানো হয়েছে!' : 'New SMS sent to your phone!');
+    } else {
+      setSignupConfirmation(null);
+      setSignupSmsSent(false);
+      notify(lang === 'bn' ? 'নতুন ওটিপি কোড প্রস্তুত!' : 'New OTP code ready!');
+    }
   };
 
   // Forgot Password: Step 1 Send OTP
-  const handleInitiateForgot = (e: React.FormEvent) => {
+  const handleInitiateForgot = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanPhone = forgotPhone.trim().replace(/[^0-9]/g, '');
     const user = users.find(u => u.phone.replace(/[^0-9]/g, '') === cleanPhone);
@@ -999,25 +1070,65 @@ export default function App() {
       notify(lang === 'bn' ? 'এই মোবাইল নম্বরে কোনো অ্যাকাউন্ট পাওয়া যায়নি' : 'No account found with this phone number');
       return;
     }
-    const generatedCode = String(Math.floor(100000 + Math.random() * 900000));
-    setGeneratedForgotOtp(generatedCode);
+
+    const fallbackCode = String(Math.floor(100000 + Math.random() * 900000));
+    setGeneratedForgotOtp(fallbackCode);
     setForgotOtpInput('');
     setNewResetPassword('');
+    setIsSmsSending(true);
+
+    const res = await sendPhoneOtpSms(forgotPhone);
+    setIsSmsSending(false);
+
+    if (res.success && res.confirmationResult) {
+      setForgotConfirmation(res.confirmationResult);
+      setForgotSmsSent(true);
+      setForgotSmsError('');
+      notify(lang === 'bn' ? `পাসওয়ার্ড রিসেট SMS পাঠানো হয়েছে!` : `Password reset SMS sent!`);
+    } else {
+      setForgotConfirmation(null);
+      setForgotSmsSent(false);
+      let errorMsg = '';
+      if (res.error?.includes('operation-not-allowed')) {
+        errorMsg = lang === 'bn'
+          ? 'Firebase Console-এ Phone Sign-in সক্রিয় নেই। তাই টেস্টিং কোড দেওয়া হলো:'
+          : 'Phone Sign-in not enabled in Firebase. Using testing OTP:';
+      } else {
+        errorMsg = lang === 'bn'
+          ? `SMS ডিসপ্যাচ হয়নি (${res.error})। বিকল্প কোড ব্যবহার করুন:`
+          : `SMS delivery failed (${res.error}). Use the code below:`;
+      }
+      setForgotSmsError(errorMsg);
+      notify(lang === 'bn' ? 'SMS পাঠানো যায়নি, বিকল্প কোড দেওয়া হয়েছে' : 'Could not send SMS, using fallback OTP');
+    }
+
     setForgotStep('otp');
     setForgotTimer(60);
-    notify(lang === 'bn' ? 'পাসওয়ার্ড রিসেট ওটিপি কোড পাঠানো হয়েছে' : 'Password reset OTP code sent');
   };
 
   // Forgot Password: Step 2 Verify OTP and Set New Password
-  const handleVerifyForgotOtp = (e: React.FormEvent) => {
+  const handleVerifyForgotOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (forgotOtpInput.trim() !== generatedForgotOtp) {
-      notify(lang === 'bn' ? 'ভুল ওটিপি কোড! অনুগ্রহ করে সঠিক কোড দিন।' : 'Incorrect OTP code!');
-      return;
-    }
     if (!newResetPassword || newResetPassword.length < 4) {
       notify(lang === 'bn' ? 'কমপক্ষে ৪ ডিজিটের নতুন পাসওয়ার্ড দিন' : 'Enter at least 4 digits for new password');
       return;
+    }
+
+    const cleanInput = forgotOtpInput.trim();
+    if (forgotConfirmation) {
+      try {
+        await forgotConfirmation.confirm(cleanInput);
+      } catch (err: any) {
+        if (cleanInput !== generatedForgotOtp) {
+          notify(lang === 'bn' ? 'ভুল ওটিপি কোড! অনুগ্রহ করে ফোনে আসা SMS চেক করুন।' : 'Incorrect OTP code!');
+          return;
+        }
+      }
+    } else {
+      if (cleanInput !== generatedForgotOtp) {
+        notify(lang === 'bn' ? 'ভুল ওটিপি কোড! অনুগ্রহ করে সঠিক কোড দিন।' : 'Incorrect OTP code!');
+        return;
+      }
     }
 
     const cleanPhone = forgotPhone.trim().replace(/[^0-9]/g, '');
@@ -1036,15 +1147,31 @@ export default function App() {
     setForgotPhone('');
     setForgotOtpInput('');
     setNewResetPassword('');
+    setForgotConfirmation(null);
+    clearRecaptcha();
     setAuthMode('login');
     notify(lang === 'bn' ? 'পাসওয়ার্ড সফলভাবে পরিবর্তিত হয়েছে এবং আপনি প্রবেশ করেছেন!' : 'Password reset successful! You are now logged in.');
   };
 
-  const handleResendForgotOtp = () => {
-    const generatedCode = String(Math.floor(100000 + Math.random() * 900000));
-    setGeneratedForgotOtp(generatedCode);
+  const handleResendForgotOtp = async () => {
+    const fallbackCode = String(Math.floor(100000 + Math.random() * 900000));
+    setGeneratedForgotOtp(fallbackCode);
     setForgotTimer(60);
-    notify(lang === 'bn' ? 'নতুন ওটিপি কোড পাঠানো হয়েছে!' : 'New reset OTP sent!');
+    setIsSmsSending(true);
+
+    const res = await sendPhoneOtpSms(forgotPhone);
+    setIsSmsSending(false);
+
+    if (res.success && res.confirmationResult) {
+      setForgotConfirmation(res.confirmationResult);
+      setForgotSmsSent(true);
+      setForgotSmsError('');
+      notify(lang === 'bn' ? 'নতুন SMS পাঠানো হয়েছে!' : 'New SMS sent!');
+    } else {
+      setForgotConfirmation(null);
+      setForgotSmsSent(false);
+      notify(lang === 'bn' ? 'নতুন ওটিপি কোড প্রস্তুত!' : 'New OTP code ready!');
+    }
   };
 
   // Update Member's Monthly Commitment
@@ -1545,6 +1672,9 @@ END:VCALENDAR`;
     return (
       <div className="app-shell" style={{ display: 'grid', placeItems: 'center', minHeight: '100vh', background: '#fff8ec' }}>
         <div className="auth-wrapper" style={{ width: '100%' }}>
+          {/* Invisible Firebase reCAPTCHA container for Phone Auth SMS dispatch */}
+          <div id="recaptcha-container"></div>
+
           <div className="auth-logo">
             <div className="brand-mark">
               <Flower2 size={32} />
@@ -1736,8 +1866,8 @@ END:VCALENDAR`;
                   </div>
                 )}
 
-                <button type="submit" className="primary-button" style={{ marginTop: 16 }}>
-                  <KeyRound size={18} /> {t.sendOtp}
+                <button type="submit" className="primary-button" style={{ marginTop: 16 }} disabled={isSmsSending}>
+                  <KeyRound size={18} /> {isSmsSending ? (lang === 'bn' ? 'মোবাইলে SMS পাঠানো হচ্ছে...' : 'Sending SMS...') : t.sendOtp}
                 </button>
 
                 <button
@@ -1760,29 +1890,46 @@ END:VCALENDAR`;
                   {lang === 'bn' ? `${authPhone} নম্বরে ৬-সংখ্যার ওটিপি কোড পাঠানো হয়েছে` : `6-digit OTP code sent to ${authPhone}`}
                 </p>
 
-                {/* Simulated SMS Alert Banner for Instant Testing & Live Use */}
-                <div className="otp-banner">
-                  <div>
-                    <span>📩 {lang === 'bn' ? 'আপনার ওটিপি কোড:' : 'Your OTP Code:'}</span>{' '}
-                    <strong>{generatedSignupOtp}</strong>
+                {/* If Real SMS Was Successfully Dispatched to Phone */}
+                {signupSmsSent ? (
+                  <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 12, padding: '12px 14px', marginBottom: 14, fontSize: 12.5, color: '#065f46', display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <CheckCircle2 size={20} color="#059669" />
+                    <div>
+                      <strong style={{ display: 'block', fontSize: 13 }}>{lang === 'bn' ? 'সরাসরি মোবাইলে SMS পাঠানো হয়েছে!' : 'SMS sent to your phone!'}</strong>
+                      <span style={{ fontSize: 11.5 }}>{lang === 'bn' ? `${authPhone} নম্বরের মেসেজ ইনবক্স চেক করে ফোনে আসা ৬ ডিজিটের কোড দিন।` : `Check SMS inbox on ${authPhone} and enter the 6-digit code.`}</span>
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setSignupOtpInput(generatedSignupOtp)}
-                    style={{
-                      background: '#d97706',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: 8,
-                      padding: '4px 8px',
-                      fontSize: 11,
-                      fontWeight: 700,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {lang === 'bn' ? 'কোড বসান' : 'Auto-fill'}
-                  </button>
-                </div>
+                ) : (
+                  <div style={{ marginBottom: 14 }}>
+                    {signupSmsError && (
+                      <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 10, padding: '9px 12px', fontSize: 11.5, color: '#92400e', marginBottom: 10, lineHeight: 1.45 }}>
+                        ⚠️ {signupSmsError}
+                      </div>
+                    )}
+                    <div className="otp-banner">
+                      <div>
+                        <span>📩 {lang === 'bn' ? 'টেস্টিং ওটিপি কোড:' : 'Testing OTP Code:'}</span>{' '}
+                        <strong>{generatedSignupOtp}</strong>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSignupOtpInput(generatedSignupOtp)}
+                        style={{
+                          background: '#d97706',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: 8,
+                          padding: '4px 8px',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {lang === 'bn' ? 'কোড বসান' : 'Auto-fill'}
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 <label style={{ textAlign: 'center', display: 'block', fontWeight: 700 }}>
                   {t.otpLabel}
@@ -1843,8 +1990,8 @@ END:VCALENDAR`;
                   autoFocus
                 />
 
-                <button type="submit" className="primary-button" style={{ marginTop: 12 }}>
-                  <KeyRound size={18} /> {t.sendOtp}
+                <button type="submit" className="primary-button" style={{ marginTop: 12 }} disabled={isSmsSending}>
+                  <KeyRound size={18} /> {isSmsSending ? (lang === 'bn' ? 'SMS পাঠানো হচ্ছে...' : 'Sending SMS...') : t.sendOtp}
                 </button>
 
                 <button
@@ -1864,28 +2011,45 @@ END:VCALENDAR`;
                   {lang === 'bn' ? `${forgotPhone} নম্বরে ভেরিফিকেশন কোড পাঠানো হয়েছে` : `Verification code sent to ${forgotPhone}`}
                 </p>
 
-                <div className="otp-banner">
-                  <div>
-                    <span>📩 {lang === 'bn' ? 'রিসেট কোড:' : 'Reset OTP:'}</span>{' '}
-                    <strong>{generatedForgotOtp}</strong>
+                {forgotSmsSent ? (
+                  <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 12, padding: '12px 14px', marginBottom: 14, fontSize: 12.5, color: '#065f46', display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <CheckCircle2 size={20} color="#059669" />
+                    <div>
+                      <strong style={{ display: 'block', fontSize: 13 }}>{lang === 'bn' ? 'পাসওয়ার্ড রিসেট SMS পাঠানো হয়েছে!' : 'Password reset SMS sent!'}</strong>
+                      <span style={{ fontSize: 11.5 }}>{lang === 'bn' ? `${forgotPhone} নম্বরের মেসেজ ইনবক্স চেক করে ৬ ডিজিটের কোড দিন।` : `Check SMS inbox on ${forgotPhone} and enter code.`}</span>
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setForgotOtpInput(generatedForgotOtp)}
-                    style={{
-                      background: '#d97706',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: 8,
-                      padding: '4px 8px',
-                      fontSize: 11,
-                      fontWeight: 700,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {lang === 'bn' ? 'কোড বসান' : 'Auto-fill'}
-                  </button>
-                </div>
+                ) : (
+                  <div style={{ marginBottom: 14 }}>
+                    {forgotSmsError && (
+                      <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 10, padding: '9px 12px', fontSize: 11.5, color: '#92400e', marginBottom: 10, lineHeight: 1.45 }}>
+                        ⚠️ {forgotSmsError}
+                      </div>
+                    )}
+                    <div className="otp-banner">
+                      <div>
+                        <span>📩 {lang === 'bn' ? 'রিসেট ওটিপি কোড:' : 'Reset OTP Code:'}</span>{' '}
+                        <strong>{generatedForgotOtp}</strong>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setForgotOtpInput(generatedForgotOtp)}
+                        style={{
+                          background: '#d97706',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: 8,
+                          padding: '4px 8px',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {lang === 'bn' ? 'কোড বসান' : 'Auto-fill'}
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 <label style={{ textAlign: 'center', display: 'block', fontWeight: 700 }}>
                   {t.otpLabel}
