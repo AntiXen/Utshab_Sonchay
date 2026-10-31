@@ -964,11 +964,11 @@ export default function App() {
           : 'Phone Sign-in not enabled in Firebase Console. Using testing OTP below:';
       } else if (res.error?.includes('unauthorized-domain')) {
         errorMsg = lang === 'bn'
-          ? 'এই ডোমেইনটি Firebase Console-এ অনুমোদিত নয়। তাই টেস্টিং কোড দেওয়া হলো:'
-          : 'Domain not authorized in Firebase Console. Using testing OTP:';
+          ? `এই Vercel ডোমেইনটি Firebase-এ অনুমোদিত নয় (Firebase Authentication > Settings > Authorized domains-এ ডোমেইনটি যোগ করুন)। বিকল্প কোড:`
+          : `Domain not authorized in Firebase Console (Add in Authentication > Settings > Authorized domains). Fallback OTP:`;
       } else {
         errorMsg = lang === 'bn'
-          ? `সরাসরি SMS পাঠানো যায়নি (${res.error || 'নেটওয়ার্ক ত্রুটি'})। বিকল্প টেস্টিং কোড নিচে দেওয়া হলো:`
+          ? `সরাসরি SMS পাঠানো যায়নি (${res.error || 'অপারেটর ইস্যু'})। বিকল্প ওটিপি নিচে দেওয়া হলো:`
           : `SMS delivery failed (${res.error}). Please use the testing code below:`;
       }
       setSignupSmsError(errorMsg);
@@ -1093,6 +1093,10 @@ export default function App() {
         errorMsg = lang === 'bn'
           ? 'Firebase Console-এ Phone Sign-in সক্রিয় নেই। তাই টেস্টিং কোড দেওয়া হলো:'
           : 'Phone Sign-in not enabled in Firebase. Using testing OTP:';
+      } else if (res.error?.includes('unauthorized-domain')) {
+        errorMsg = lang === 'bn'
+          ? 'এই Vercel ডোমেইনটি Firebase Console-এ অনুমোদিত নয় (Settings > Authorized domains-এ যোগ করুন)।'
+          : 'Domain not authorized in Firebase Console (Add in Settings > Authorized domains).';
       } else {
         errorMsg = lang === 'bn'
           ? `SMS ডিসপ্যাচ হয়নি (${res.error})। বিকল্প কোড ব্যবহার করুন:`
