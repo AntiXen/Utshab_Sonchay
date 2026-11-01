@@ -249,15 +249,133 @@ export const subscribeToUsers = (
           joinedAt: d.joinedAt || '',
         };
       });
-      if (liveUsers.length > 0) {
-        onData(liveUsers);
-      }
+      onData(liveUsers);
     },
     err => {
       console.warn('Firestore users subscription fallback to local state:', err);
       if (onError) onError(err);
     }
   );
+};
+
+// Direct Promise-Based One-Shot User Fetchers
+export const fetchAllUsersFromFirestore = async (): Promise<User[]> => {
+  if (!isLiveBackend() || !db) return [];
+  try {
+    const snapshot = await getDocs(collection(db, 'users'));
+    return snapshot.docs.map(docSnap => {
+      const d = docSnap.data();
+      return {
+        id: typeof d.id === 'number' ? d.id : Number(docSnap.id.replace(/\D/g, '').slice(0, 8)) || Date.now(),
+        name: d.displayName || d.name || 'সদস্য',
+        phone: d.phone || '',
+        role: d.role === 'admin' || d.role === 'Admin' ? 'Admin' : 'Member',
+        paid: Boolean(d.paid),
+        active: d.active !== false,
+        monthlyCommitment: Number(d.monthlyCommitment) || 1000,
+        password: d.password || '',
+        approvalStatus: (d.approvalStatus as 'Approved' | 'Pending' | 'Rejected') || 'Approved',
+        designation: d.designation || (d.role === 'admin' ? 'সভাপতি ও প্রধান অ্যাডমিন' : 'সাধারণ সদস্য'),
+        joinedAt: d.joinedAt || '',
+      };
+    });
+  } catch (err) {
+    console.error('Error fetching users from cloud:', err);
+    return [];
+  }
+};
+
+export const fetchUserByPhoneFromFirestore = async (rawPhone: string): Promise<User | null> => {
+  if (!isLiveBackend() || !db) return null;
+  const cleanPhone = rawPhone.trim().replace(/[^0-9]/g, '');
+  if (!cleanPhone) return null;
+
+  try {
+    const snapshot = await getDocs(collection(db, 'users'));
+    for (const docSnap of snapshot.docs) {
+      const d = docSnap.data();
+      const phoneInDb = String(d.phone || '').trim().replace(/[^0-9]/g, '');
+      if (phoneInDb === cleanPhone || (phoneInDb.length >= 10 && cleanPhone.endsWith(phoneInDb)) || (cleanPhone.length >= 10 && phoneInDb.endsWith(cleanPhone))) {
+        return {
+          id: typeof d.id === 'number' ? d.id : Number(docSnap.id.replace(/\D/g, '').slice(0, 8)) || Date.now(),
+          name: d.displayName || d.name || 'সদস্য',
+          phone: d.phone || '',
+          role: d.role === 'admin' || d.role === 'Admin' ? 'Admin' : 'Member',
+          paid: Boolean(d.paid),
+          active: d.active !== false,
+          monthlyCommitment: Number(d.monthlyCommitment) || 1000,
+          password: d.password || '',
+          approvalStatus: (d.approvalStatus as 'Approved' | 'Pending' | 'Rejected') || 'Approved',
+          designation: d.designation || (d.role === 'admin' ? 'সভাপতি ও প্রধান অ্যাডমিন' : 'সাধারণ সদস্য'),
+          joinedAt: d.joinedAt || '',
+        };
+      }
+    }
+  } catch (err) {
+    console.error('Error finding user by phone from Firestore:', err);
+  }
+  return null;
+};
+
+export const fetchIncomeFromFirestore = async (): Promise<Income[]> => {
+  if (!isLiveBackend() || !db) return [];
+  try {
+    const q = query(collection(db, 'income'), orderBy('createdAt', 'desc'));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(docSnap => {
+      const d = docSnap.data();
+      const type: IncomeType = d.type === 'pronami' ? 'pronami' : 'contribution';
+      const status: IncomeStatus = d.status === 'confirmed' ? 'Confirmed' : d.status === 'rejected' ? 'Rejected' : 'Pending';
+      const method: PaymentMethod = (d.method as PaymentMethod) || 'bKash';
+      return {
+        id: typeof d.id === 'number' ? d.id : Number(docSnap.id.replace(/\D/g, '').slice(0, 8)) || Date.now(),
+        type,
+        name: d.giverName || d.name || 'বেনামী',
+        amount: Number(d.amount) || 0,
+        day: d.day || '—',
+        method,
+        status,
+        date: d.date || new Date().toISOString().split('T')[0],
+        publicName: d.publicName ?? true,
+        createdBy: d.createdBy || d.memberUid || 'System',
+        trxId: d.providerTransactionId || d.trxId || '',
+        senderPhone: d.senderNumber || d.senderPhone || '',
+        month: d.month || '',
+        rejectReason: d.rejectionReason || d.rejectReason || '',
+      };
+    });
+  } catch (err) {
+    console.error('Error fetching income from Firestore:', err);
+    return [];
+  }
+};
+
+export const fetchBillsFromFirestore = async (): Promise<Bill[]> => {
+  if (!isLiveBackend() || !db) return [];
+  try {
+    const q = query(collection(db, 'bills'), orderBy('createdAt', 'desc'));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(docSnap => {
+      const d = docSnap.data();
+      return {
+        id: typeof d.id === 'number' ? d.id : Number(docSnap.id.replace(/\D/g, '').slice(0, 8)) || Date.now(),
+        vendor: d.vendor || '',
+        description: d.description || '',
+        category: d.category || 'অন্যান্য',
+        total: Number(d.amount || d.total) || 0,
+        paid: Number(d.paid) || 0,
+        status: (d.status === 'approved' ? 'Approved' : d.status === 'rejected' ? 'Rejected' : 'Pending'),
+        requester: d.requester || d.requestedByName || 'সদস্য',
+        type: d.type === 'reimbursement' ? 'Reimbursement' : 'Advance',
+        dueDate: d.dueDate || '',
+        createdAt: d.date || new Date().toISOString().split('T')[0],
+        rejectReason: d.rejectReason || '',
+      };
+    });
+  } catch (err) {
+    console.error('Error fetching bills from Firestore:', err);
+    return [];
+  }
 };
 
 // Record user to cloud

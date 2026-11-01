@@ -60,6 +60,10 @@ import {
   subscribeToIncome,
   subscribeToBills,
   subscribeToUsers,
+  fetchAllUsersFromFirestore,
+  fetchUserByPhoneFromFirestore,
+  fetchIncomeFromFirestore,
+  fetchBillsFromFirestore,
   saveIncomeToFirestore,
   updateIncomeStatusInFirestore,
   saveBillToFirestore,
@@ -405,25 +409,6 @@ export default function App() {
   useEffect(() => { localStorage.setItem('puja_fund_notifications', JSON.stringify(notifications)); }, [notifications]);
   useEffect(() => { localStorage.setItem('puja_fund_merchant_ledger', JSON.stringify(merchantLedger)); }, [merchantLedger]);
 
-  // One-time auto-wipe of legacy demo data from browser storage for production clean start
-  useEffect(() => {
-    if (typeof window !== 'undefined' && !localStorage.getItem('utsab_sonchay_v5_clean')) {
-      localStorage.removeItem('puja_fund_users');
-      localStorage.removeItem('puja_fund_current_user');
-      localStorage.removeItem('puja_fund_income');
-      localStorage.removeItem('puja_fund_bills');
-      localStorage.removeItem('puja_fund_notifications');
-      localStorage.removeItem('puja_fund_merchant_ledger');
-      localStorage.setItem('utsab_sonchay_v5_clean', 'true');
-      setUsers([]);
-      setCurrentUser(null);
-      setIncome([]);
-      setBills([]);
-      setNotifications([]);
-      setMerchantLedger([]);
-    }
-  }, []);
-
   const t = translations[lang] as Record<string, any>;
   const role: MemberRole = currentUser ? currentUser.role : 'Member';
 
@@ -432,8 +417,11 @@ export default function App() {
   const [toast, setToast] = useState('');
   const [addMenu, setAddMenu] = useState(false);
 
-  // Auth Form State
-  const [authMode, setAuthMode] = useState<'login' | 'signup' | 'forgot'>(() => users.length === 0 ? 'signup' : 'login');
+  // Cloud Sync & Auth Form State
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isSigningUp, setIsSigningUp] = useState(false);
+  const [isInitialSyncDone, setIsInitialSyncDone] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'signup' | 'forgot'>('login');
   const [authPhone, setAuthPhone] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authName, setAuthName] = useState('');
@@ -698,10 +686,29 @@ export default function App() {
 
   // Live Cloud Firestore Synchronizer (Active when Firebase credentials are configured)
   useEffect(() => {
-    if (!isLiveBackend()) return;
+    if (!isLiveBackend()) {
+      setIsInitialSyncDone(true);
+      return;
+    }
 
     initCloudSession();
 
+    // 1. Initial direct load for instant UI responsiveness across all browsers & incognito tabs
+    Promise.all([
+      fetchAllUsersFromFirestore().then(liveUsers => {
+        if (liveUsers.length > 0) setUsers(liveUsers);
+      }),
+      fetchIncomeFromFirestore().then(liveIncome => {
+        if (liveIncome.length > 0) setIncome(liveIncome);
+      }),
+      fetchBillsFromFirestore().then(liveBills => {
+        if (liveBills.length > 0) setBills(liveBills);
+      }),
+    ]).finally(() => {
+      setIsInitialSyncDone(true);
+    });
+
+    // 2. Real-time subscriptions for reactive live updates
     const unsubIncome = subscribeToIncome(liveIncomes => {
       setIncome(liveIncomes);
     });
@@ -901,10 +908,43 @@ export default function App() {
   };
 
   // ================= AUTH HANDLERS =================
-  const handleLogin = (e?: React.FormEvent) => {
+  const handleLogin = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const cleanPhone = authPhone.trim().replace(/[^0-9]/g, '');
-    const user = users.find(u => u.phone.replace(/[^0-9]/g, '') === cleanPhone);
+    if (!cleanPhone) {
+      notify(lang === 'bn' ? 'সঠিক মোবাইল নম্বর লিখুন' : 'Enter mobile number');
+      return;
+    }
+    if (!authPassword) {
+      notify(lang === 'bn' ? 'পাসওয়ার্ড বা পিন দিন' : 'Enter PIN or password');
+      return;
+    }
+
+    setIsLoggingIn(true);
+
+    // 1. Check in-memory users state first
+    let user: User | null | undefined = users.find(u => {
+      const p = u.phone.replace(/[^0-9]/g, '');
+      return p === cleanPhone || (p.length >= 10 && cleanPhone.endsWith(p)) || (cleanPhone.length >= 10 && p.endsWith(cleanPhone));
+    });
+
+    // 2. If not found in state (e.g. Incognito or fresh session), query Firestore directly!
+    if (!user && isLiveBackend()) {
+      try {
+        const cloudUser = await fetchUserByPhoneFromFirestore(cleanPhone);
+        if (cloudUser) {
+          user = cloudUser;
+          setUsers(prev => {
+            const exists = prev.some(u => u.id === cloudUser.id);
+            return exists ? prev : [cloudUser, ...prev];
+          });
+        }
+      } catch (err) {
+        console.warn('Cloud login fetch error:', err);
+      }
+    }
+
+    setIsLoggingIn(false);
 
     if (!user) {
       notify(lang === 'bn' ? 'এই মোবাইল নম্বরে কোনো অ্যাকাউন্ট পাওয়া যায়নি' : 'User not found with this phone number');
@@ -944,7 +984,7 @@ export default function App() {
   };
 
   // Direct Signup Handler (Manual Admin Verification, 100% Free - 0 OTP / $0 Cost)
-  const handleSignup = (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!authName.trim()) {
       notify(lang === 'bn' ? 'আপনার নাম লিখুন' : 'Enter your name');
@@ -955,17 +995,38 @@ export default function App() {
       notify(lang === 'bn' ? 'সঠিক মোবাইল নম্বর দিন (কমপক্ষে ১০ ডিজিট)' : 'Enter a valid phone number');
       return;
     }
-    if (users.some(u => u.phone.replace(/[^0-9]/g, '') === cleanPhone)) {
-      notify(lang === 'bn' ? 'এই মোবাইল নম্বরটি আগেই নিবন্ধিত হয়েছে' : 'This phone number is already registered');
-      return;
-    }
     if (!authPassword || authPassword.length < 4) {
       notify(lang === 'bn' ? 'কমপক্ষে ৪ ডিজিটের পাসওয়ার্ড বা পিন দিন' : 'Enter at least 4 digits for PIN/password');
       return;
     }
 
+    setIsSigningUp(true);
+
+    // Verify against latest Firestore users to guarantee 0 duplicates and accurate Admin role
+    let allLiveUsers = users;
+    if (isLiveBackend()) {
+      try {
+        const cloudUsers = await fetchAllUsersFromFirestore();
+        if (cloudUsers.length > 0) {
+          allLiveUsers = cloudUsers;
+          setUsers(cloudUsers);
+        }
+      } catch (err) {
+        console.warn('Cloud signup check error:', err);
+      }
+    }
+
+    if (allLiveUsers.some(u => {
+      const p = u.phone.replace(/[^0-9]/g, '');
+      return p === cleanPhone || (p.length >= 10 && cleanPhone.endsWith(p)) || (cleanPhone.length >= 10 && p.endsWith(cleanPhone));
+    })) {
+      setIsSigningUp(false);
+      notify(lang === 'bn' ? 'এই মোবাইল নম্বরটি আগেই নিবন্ধিত হয়েছে' : 'This phone number is already registered');
+      return;
+    }
+
     const finalCommitment = customCommitmentInput ? (Number(customCommitmentInput) || 1000) : (authMonthlyCommitment || 1000);
-    const isFirstUser = users.length === 0 || !users.some(u => u.role === 'Admin');
+    const isFirstUser = allLiveUsers.length === 0 || !allLiveUsers.some(u => u.role === 'Admin');
 
     if (isFirstUser) {
       // First person signed up is automatically the Main Admin (Approved instantly)
@@ -983,8 +1044,9 @@ export default function App() {
         joinedAt: new Date().toLocaleDateString('bn-BD')
       };
 
-      setUsers(prev => [...prev, adminUser]);
-      saveUserToFirestore(adminUser).catch(err => console.warn('Cloud save admin user failed:', err));
+      setUsers(prev => [adminUser, ...prev.filter(u => u.id !== adminUser.id)]);
+      await saveUserToFirestore(adminUser).catch(err => console.warn('Cloud save admin user failed:', err));
+      setIsSigningUp(false);
       setCurrentUser(adminUser);
       setVerifyPhone(adminUser.phone);
       setChadaAmountInput(String(finalCommitment));
@@ -1010,8 +1072,9 @@ export default function App() {
         joinedAt: new Date().toLocaleDateString('bn-BD')
       };
 
-      setUsers(prev => [...prev, pendingUser]);
-      saveUserToFirestore(pendingUser).catch(err => console.warn('Cloud save pending user failed:', err));
+      setUsers(prev => [pendingUser, ...prev.filter(u => u.id !== pendingUser.id)]);
+      await saveUserToFirestore(pendingUser).catch(err => console.warn('Cloud save pending user failed:', err));
+      setIsSigningUp(false);
 
       // Notification for Admin
       const adminNotif: AppNotification = {
@@ -1035,10 +1098,17 @@ export default function App() {
   };
 
   // Direct Cost-Free Password Reset (0 SMS, 100% Spark Free)
-  const handleResetPasswordDirect = (e: React.FormEvent) => {
+  const handleResetPasswordDirect = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanPhone = forgotPhone.trim().replace(/[^0-9]/g, '');
-    const user = users.find(u => u.phone.replace(/[^0-9]/g, '') === cleanPhone);
+    let user: User | null | undefined = users.find(u => {
+      const p = u.phone.replace(/[^0-9]/g, '');
+      return p === cleanPhone || (p.length >= 10 && cleanPhone.endsWith(p)) || (cleanPhone.length >= 10 && p.endsWith(cleanPhone));
+    });
+
+    if (!user && isLiveBackend()) {
+      user = await fetchUserByPhoneFromFirestore(cleanPhone);
+    }
 
     if (!user) {
       notify(lang === 'bn' ? 'এই মোবাইল নম্বরে কোনো অ্যাকাউন্ট পাওয়া যায়নি' : 'No account found with this phone number');
@@ -1050,8 +1120,8 @@ export default function App() {
     }
 
     const updatedUser = { ...user, password: newResetPassword };
-    setUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
-    updateUserPasswordInFirestore(user.id, newResetPassword).catch(err => console.warn('Cloud password update error:', err));
+    setUsers(prev => prev.map(u => u.id === user!.id ? updatedUser : u));
+    await updateUserPasswordInFirestore(user.id, newResetPassword).catch(err => console.warn('Cloud password update error:', err));
     setForgotPhone('');
     setNewResetPassword('');
     setForgotSuccess(true);
@@ -1601,6 +1671,10 @@ END:VCALENDAR`;
             </div>
             <h1>{lang === 'bn' ? 'উৎসব সঞ্চয়' : 'Utsab Sonchay'}</h1>
             <p>{t.festival} — {lang === 'bn' ? 'তহবিল ও চাঁদা ব্যবস্থাপনা' : 'Community Fund & Contribution'}</p>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 20, padding: '3px 10px', marginTop: 8, fontSize: 11, color: '#15803d', fontWeight: 600 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }}></span>
+              {lang === 'bn' ? 'ক্লাউড সার্ভার সক্রিয়' : 'Cloud Server Active'}
+            </div>
           </div>
 
           <div className="auth-tabs">
@@ -1707,8 +1781,8 @@ END:VCALENDAR`;
                   {t.forgotPassword}
                 </button>
 
-                <button type="submit" className="primary-button">
-                  <LogIn size={18} /> {t.login}
+                <button type="submit" className="primary-button" disabled={isLoggingIn}>
+                  <LogIn size={18} /> {isLoggingIn ? (lang === 'bn' ? 'লগইন যাচাই হচ্ছে...' : 'Verifying...') : t.login}
                 </button>
 
                 <button
@@ -1816,8 +1890,8 @@ END:VCALENDAR`;
                   </div>
                 )}
 
-                <button type="submit" className="primary-button" style={{ marginTop: 16 }}>
-                  <UserPlus size={18} /> {lang === 'bn' ? 'নিবন্ধন সম্পন্ন করুন' : 'Complete Registration'}
+                <button type="submit" className="primary-button" style={{ marginTop: 16 }} disabled={isSigningUp}>
+                  <UserPlus size={18} /> {isSigningUp ? (lang === 'bn' ? 'নিবন্ধন করা হচ্ছে...' : 'Registering...') : (lang === 'bn' ? 'নিবন্ধন সম্পন্ন করুন' : 'Complete Registration')}
                 </button>
 
                 <button

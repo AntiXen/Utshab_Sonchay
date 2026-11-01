@@ -6,23 +6,58 @@ import {
   type ConfirmationResult,
 } from 'firebase/auth';
 export type { ConfirmationResult };
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  memoryLocalCache,
+  getFirestore,
+  type Firestore,
+} from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
+// Production Firebase Configuration (with defaults so Vercel builds always connect even without .env variables)
 const config = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyCjRzTAG3H3NUC9HcSXnVG1yqf__DnoMCw',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'utshab-sonchay.firebaseapp.com',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'utshab-sonchay',
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'utshab-sonchay.firebasestorage.app',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '70460219265',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:70460219265:web:ed4a7f6602a4b432f85280',
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || 'G-N712FSGPKW',
 };
 
-export const firebaseConfigured = Boolean(config.apiKey && config.projectId && import.meta.env.VITE_DEMO_MODE !== 'true');
+export const firebaseConfigured = Boolean(
+  config.apiKey && config.projectId && import.meta.env.VITE_DEMO_MODE !== 'true'
+);
 const app = firebaseConfigured ? (getApps()[0] ?? initializeApp(config)) : null;
 export const auth = app ? getAuth(app) : null;
-export const db = app ? initializeFirestore(app, {localCache: persistentLocalCache({tabManager: persistentMultipleTabManager()})}) : null;
+
+// Production-grade Firestore initialization (safely handles Incognito / Private Browsing / IndexedDB restrictions)
+let dbInstance: Firestore | null = null;
+if (app) {
+  try {
+    dbInstance = initializeFirestore(app, {
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager(),
+      }),
+    });
+  } catch (e) {
+    console.warn('Persistent cache unavailable (e.g. private/incognito browsing). Falling back to memory cache:', e);
+    try {
+      dbInstance = initializeFirestore(app, {
+        localCache: memoryLocalCache(),
+      });
+    } catch {
+      try {
+        dbInstance = getFirestore(app);
+      } catch (err) {
+        console.error('Critical Firestore initialization error:', err);
+      }
+    }
+  }
+}
+export const db = dbInstance;
 export const storage = app ? getStorage(app) : null;
 
 // Firebase Phone Authentication (Real SMS Dispatch)
