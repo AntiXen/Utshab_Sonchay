@@ -53,6 +53,8 @@ import {
   CheckCircle,
   XCircle,
   Camera,
+  Target,
+  Volume2,
 } from 'lucide-react';
 import { translations } from './translations';
 import {
@@ -827,9 +829,61 @@ export default function App() {
     }
   };
 
+  // Auspicious Festive Temple Bell & Chime Synthesizer (Zero-latency HTML5 Web Audio API)
+  const playFestiveNotificationSound = () => {
+    if (typeof window === 'undefined') return;
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
+
+      const now = ctx.currentTime;
+
+      // Authentic Puja Bell Harmonic Chime:
+      // Note D5 (587.33Hz) -> Note A5 (880Hz) -> High D6 (1174.66Hz) -> Shimmer Overtones (1760Hz & 2349Hz)
+      const tones = [
+        { freq: 587.33, start: 0, dur: 1.2, gain: 0.3 },
+        { freq: 880.00, start: 0.08, dur: 1.4, gain: 0.35 },
+        { freq: 1174.66, start: 0.16, dur: 1.8, gain: 0.4 },
+        { freq: 1760.00, start: 0.20, dur: 0.9, gain: 0.15 },
+        { freq: 2349.32, start: 0.24, dur: 0.7, gain: 0.1 }
+      ];
+
+      tones.forEach(({ freq, start, dur, gain }) => {
+        const osc = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + start);
+
+        gainNode.gain.setValueAtTime(0.0001, now + start);
+        gainNode.gain.exponentialRampToValueAtTime(gain, now + start + 0.012);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, now + start + dur);
+
+        osc.connect(gainNode);
+        gainNode.connect(ctx.destination);
+
+        osc.start(now + start);
+        osc.stop(now + start + dur);
+      });
+
+      setTimeout(() => {
+        ctx.close().catch(() => {});
+      }, 2500);
+    } catch (e) {
+      console.warn('Notification audio playback failed:', e);
+    }
+  };
+
   // Helper to dispatch device notification to mobile screen
   const sendDeviceNotification = (title: string, body: string, tag = 'chada-reminder') => {
     if (typeof window === 'undefined') return;
+
+    // Play auspicious bell chime sound
+    playFestiveNotificationSound();
 
     // 1. Try Service Worker showNotification (pops up on mobile screen even outside the app)
     if ('serviceWorker' in navigator) {
@@ -1064,7 +1118,8 @@ export default function App() {
           ? 'চলতি মাসের ১০ তারিখের সময়সীমা অতিক্রান্ত হয়েছে। আপনার নির্ধারিত মাসিক চাঁদা এখনও বাকি আছে। অবিলম্বে পরিশোধ করুন।'
           : 'The 10th deadline has passed. Your monthly contribution is overdue. Please pay now.');
 
-    // 1. Fire native mobile notification to device screen
+    // 1. Play festive bell sound & fire native mobile notification to device screen
+    playFestiveNotificationSound();
     sendDeviceNotification(title, body, 'admin-broadcast');
 
     // 2. Add to in-app notification center for all members & save to Firestore
@@ -1181,9 +1236,22 @@ export default function App() {
       .reduce((s, x) => s + x.amount, 0);
   }, [income]);
 
-  const annualCycleTarget = useMemo(() => {
-    return approvedUsers.reduce((sum, u) => sum + (u.monthlyCommitment || 1000), 0) * 12;
+  const totalMonthlyCommitment = useMemo(() => {
+    return approvedUsers.reduce((sum, u) => sum + (u.monthlyCommitment || 1000), 0);
   }, [approvedUsers]);
+
+  const annualCycleTarget = useMemo(() => {
+    return totalMonthlyCommitment * 12;
+  }, [totalMonthlyCommitment]);
+
+  const annualRemainingDue = useMemo(() => {
+    return Math.max(0, annualCycleTarget - annualChadaTotal);
+  }, [annualCycleTarget, annualChadaTotal]);
+
+  const annualProgressPercent = useMemo(() => {
+    if (!annualCycleTarget) return 0;
+    return Math.min(100, Math.round((annualChadaTotal / annualCycleTarget) * 100));
+  }, [annualCycleTarget, annualChadaTotal]);
 
   const totalPronamiCollected = useMemo(() => {
     return income
@@ -1977,7 +2045,8 @@ END:VCALENDAR`;
     // 1. Dispatch to Firestore collection so all members across all devices receive it instantly
     await saveNotificationToFirestore(newNotif).catch(e => console.warn('Cloud announcement save error:', e));
 
-    // 2. Dispatch device screen push notification
+    // 2. Play festive bell sound & dispatch device screen push notification
+    playFestiveNotificationSound();
     sendDeviceNotification(`📢 ${cleanTitle}`, cleanBody, 'admin-announcement');
 
     // 3. Update local state
@@ -3838,23 +3907,187 @@ END:VCALENDAR`;
                     })}
                 </div>
 
-                {/* 12-Month Annual Chada Grand Total Strip */}
-                <div style={{ background: '#fffaf3', border: '1px dashed #d9c4af', borderRadius: 14, padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-                  <div>
-                    <span style={{ fontSize: 12, color: '#6e5a4c', fontWeight: 700, display: 'block' }}>
-                      {lang === 'bn' ? 'শারদীয় দুর্গোৎসব ২০২৭ চাঁদা চক্র (১ নভেম্বর ’২৬ – অক্টোবর ’২৭)' : 'Durga Puja 2027 Cycle (1 Nov ’26 – Oct ’27)'}
+                {/* 12-Month Annual Chada Grand Target & Member Breakdown Card */}
+                <div
+                  style={{
+                    marginTop: 18,
+                    background: 'linear-gradient(135deg, #fff9f0 0%, #fff3e3 50%, #feeeda 100%)',
+                    border: '1.5px solid #e2be88',
+                    borderRadius: 18,
+                    padding: '16px 16px 14px',
+                    boxShadow: '0 4px 18px rgba(184, 38, 38, 0.08)'
+                  }}
+                >
+                  {/* Card Header with Icon & Target Badge */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div
+                        style={{
+                          width: 38,
+                          height: 38,
+                          borderRadius: 12,
+                          background: 'linear-gradient(135deg, #a61f1f, #8d1717)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#fff',
+                          boxShadow: '0 2px 8px rgba(166, 31, 31, 0.25)',
+                          flexShrink: 0
+                        }}
+                      >
+                        <Target size={20} />
+                      </div>
+                      <div>
+                        <h4 style={{ margin: 0, fontSize: 14.5, fontWeight: 800, color: '#6d1818' }}>
+                          {lang === 'bn' ? 'শারদীয় দুর্গোৎসব ২০২৭ — ১২ মাসের চাঁদা লক্ষ্যমাত্রা' : 'Durga Puja 2027 — 12-Month Target'}
+                        </h4>
+                        <span style={{ fontSize: 11, color: '#825f38', fontWeight: 600 }}>
+                          {lang === 'bn' ? '১ নভেম্বর ২০২৬ – ৩১ অক্টোবর ২০২৭ (পূর্ণ চক্র)' : '1 Nov 2026 – 31 Oct 2027 (Full Cycle)'}
+                        </span>
+                      </div>
+                    </div>
+                    <span
+                      style={{
+                        background: annualProgressPercent > 0 ? '#e8f5e9' : '#fff',
+                        color: annualProgressPercent > 0 ? '#1b5e20' : '#8d1717',
+                        border: '1px solid',
+                        borderColor: annualProgressPercent > 0 ? '#a5d6a7' : '#e0c5a2',
+                        padding: '3px 10px',
+                        borderRadius: 999,
+                        fontWeight: 700,
+                        fontSize: 11.5,
+                        alignSelf: 'center'
+                      }}
+                    >
+                      {toBnDigits(annualProgressPercent)}% {lang === 'bn' ? 'অর্জিত' : 'Achieved'}
                     </span>
-                    <small style={{ fontSize: 11, color: '#887465' }}>
-                      {lang === 'bn' ? `১২ মাসের মোট লক্ষ্যমাত্রা: ${fmt(annualCycleTarget)}` : `12-Month Target: ${fmt(annualCycleTarget)}`}
-                    </small>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <span style={{ fontSize: 11, color: '#6e5a4c', display: 'block' }}>
-                      {lang === 'bn' ? 'এ পর্যন্ত আদায়কৃত:' : 'Total Collected:'}
-                    </span>
-                    <strong style={{ fontSize: 16, color: '#25774a', fontWeight: 800 }}>
-                      {fmt(annualChadaTotal)}
-                    </strong>
+
+                  {/* 4-Stat Metric Grid */}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(2, 1fr)',
+                      gap: 8,
+                      marginBottom: 12
+                    }}
+                  >
+                    {/* Metric 1: Member Count */}
+                    <div
+                      style={{
+                        background: '#ffffff',
+                        border: '1px solid #ebd4b8',
+                        borderRadius: 12,
+                        padding: '10px 12px',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+                      }}
+                    >
+                      <span style={{ fontSize: 11, color: '#7a5a3a', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600 }}>
+                        👥 {lang === 'bn' ? 'অনুমোদিত সদস্য' : 'Active Members'}
+                      </span>
+                      <strong style={{ fontSize: 16, color: '#2b231d', display: 'block', marginTop: 3, fontWeight: 800 }}>
+                        {toBnDigits(approvedUsers.length)} {lang === 'bn' ? 'জন' : 'Members'}
+                      </strong>
+                      <small style={{ fontSize: 10, color: '#96785c', display: 'block', marginTop: 1 }}>
+                        {lang === 'bn' ? 'চাঁদা প্রদানকারী সদস্য' : 'Committed members'}
+                      </small>
+                    </div>
+
+                    {/* Metric 2: Monthly Pool */}
+                    <div
+                      style={{
+                        background: '#ffffff',
+                        border: '1px solid #ebd4b8',
+                        borderRadius: 12,
+                        padding: '10px 12px',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+                      }}
+                    >
+                      <span style={{ fontSize: 11, color: '#7a5a3a', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600 }}>
+                        🗓️ {lang === 'bn' ? 'প্রতি মাসে মোট চাঁদা' : 'Monthly Pool'}
+                      </span>
+                      <strong style={{ fontSize: 16, color: '#a61f1f', display: 'block', marginTop: 3, fontWeight: 800 }}>
+                        {fmt(totalMonthlyCommitment)}
+                      </strong>
+                      <small style={{ fontSize: 10, color: '#96785c', display: 'block', marginTop: 1 }}>
+                        {lang === 'bn' ? 'সকলের মাসিক সমষ্টি' : 'Combined monthly pool'}
+                      </small>
+                    </div>
+
+                    {/* Metric 3: 12-Month Target */}
+                    <div
+                      style={{
+                        background: '#ffffff',
+                        border: '1.5px solid #dca76a',
+                        borderRadius: 12,
+                        padding: '10px 12px',
+                        boxShadow: '0 2px 6px rgba(166, 31, 31, 0.05)'
+                      }}
+                    >
+                      <span style={{ fontSize: 11, color: '#8d1717', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700 }}>
+                        🎯 {lang === 'bn' ? '১২ মাসের সর্বমোট লক্ষ্য' : '12-Month Target'}
+                      </span>
+                      <strong style={{ fontSize: 16, color: '#8d1717', display: 'block', marginTop: 3, fontWeight: 800 }}>
+                        {fmt(annualCycleTarget)}
+                      </strong>
+                      <small style={{ fontSize: 10, color: '#7a5a3a', display: 'block', marginTop: 1 }}>
+                        {lang === 'bn' ? `(${fmt(totalMonthlyCommitment)} × ১২ মাস)` : `(${fmt(totalMonthlyCommitment)} × 12 mo)`}
+                      </small>
+                    </div>
+
+                    {/* Metric 4: Collected So Far */}
+                    <div
+                      style={{
+                        background: '#ffffff',
+                        border: '1.5px solid #a5d6a7',
+                        borderRadius: 12,
+                        padding: '10px 12px',
+                        boxShadow: '0 2px 6px rgba(37, 119, 74, 0.05)'
+                      }}
+                    >
+                      <span style={{ fontSize: 11, color: '#1b5e20', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700 }}>
+                        💰 {lang === 'bn' ? 'এ পর্যন্ত মোট আদায়' : 'Total Collected'}
+                      </span>
+                      <strong style={{ fontSize: 16, color: '#25774a', display: 'block', marginTop: 3, fontWeight: 800 }}>
+                        {fmt(annualChadaTotal)}
+                      </strong>
+                      <small style={{ fontSize: 10, color: '#407952', display: 'block', marginTop: 1 }}>
+                        {lang === 'bn' ? 'তহবিলে সংগৃহীত মোট' : 'Collected into fund'}
+                      </small>
+                    </div>
+                  </div>
+
+                  {/* Progress Bar & Remaining Balance */}
+                  <div style={{ background: '#ffffff', borderRadius: 12, padding: '10px 12px', border: '1px solid #ebd4b8' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5, fontSize: 11.5 }}>
+                      <span style={{ fontWeight: 700, color: '#6d1818' }}>
+                        {lang === 'bn' ? 'তহবিল সঞ্চয় অগ্রগতি' : 'Fund Progress'}
+                      </span>
+                      <span style={{ fontWeight: 700, color: '#25774a' }}>
+                        {fmt(annualChadaTotal)} / {fmt(annualCycleTarget)}
+                      </span>
+                    </div>
+                    <div style={{ background: '#f3e8db', height: 9, borderRadius: 999, overflow: 'hidden', position: 'relative' }}>
+                      <div
+                        style={{
+                          width: `${annualProgressPercent}%`,
+                          height: '100%',
+                          background: 'linear-gradient(90deg, #d97706, #16a34a)',
+                          borderRadius: 999,
+                          transition: 'width 0.4s ease'
+                        }}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, fontSize: 11 }}>
+                      <span style={{ color: '#6e5a4c' }}>
+                        {lang === 'bn' ? 'অর্জিত: ' : 'Achieved: '}
+                        <strong style={{ color: '#16a34a' }}>{toBnDigits(annualProgressPercent)}%</strong>
+                      </span>
+                      <span style={{ color: '#6e5a4c' }}>
+                        {lang === 'bn' ? 'বাকি লক্ষ্যমাত্রা: ' : 'Remaining Due: '}
+                        <strong style={{ color: '#b91c1c' }}>{fmt(annualRemainingDue)}</strong>
+                      </span>
+                    </div>
                   </div>
                 </div>
               </>
@@ -5474,7 +5707,18 @@ END:VCALENDAR`;
               <span style={{ fontSize: 13, color: '#68574a' }}>
                 {lang === 'bn' ? `মোট ${notifications.length}টি নোটিফিকেশন` : `${notifications.length} Notifications`}
               </span>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  className="primary-small"
+                  style={{ background: '#7c3aed' }}
+                  onClick={() => {
+                    playFestiveNotificationSound();
+                    notify(lang === 'bn' ? '🔔 উৎসবমুখর নোটিফিকেশন সাউন্ড বাজানো হয়েছে' : '🔔 Festive notification chime played');
+                  }}
+                  title={lang === 'bn' ? 'নোটিফিকেশন সাউন্ড বাজিয়ে পরীক্ষা করুন' : 'Test Festive Sound'}
+                >
+                  <Volume2 size={14} /> {lang === 'bn' ? 'সাউন্ড টেস্ট' : 'Sound'}
+                </button>
                 <button
                   className="primary-small"
                   onClick={() => {
