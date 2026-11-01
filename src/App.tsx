@@ -197,6 +197,23 @@ export interface PujaMonth {
 }
 
 export const PUJA_CYCLE_MONTHS: PujaMonth[] = [
+  // 2027 Puja Cycle (Durga Puja 2027)
+  { id: '2027-12', nameBn: 'ডিসেম্বর ২০২৭ (অগ্রহায়ণ)', nameEn: 'December 2027', shortBn: 'ডিসেম্বর ২০২৭', shortEn: 'Dec 2027' },
+  { id: '2027-11', nameBn: 'নভেম্বর ২০২৭ (কার্তিক)', nameEn: 'November 2027', shortBn: 'নভেম্বর ২০২৭', shortEn: 'Nov 2027' },
+  { id: '2027-10', nameBn: 'অক্টোবর ২০২৭ (আশ্বিন - পূজা মাস)', nameEn: 'October 2027 (Puja Month)', shortBn: 'অক্টোবর ২০২৭', shortEn: 'Oct 2027' },
+  { id: '2027-09', nameBn: 'সেপ্টেম্বর ২০২৭ (ভাদ্র)', nameEn: 'September 2027', shortBn: 'সেপ্টেম্বর ২০২৭', shortEn: 'Sep 2027' },
+  { id: '2027-08', nameBn: 'আগস্ট ২০২৭ (শ্রাবণ)', nameEn: 'August 2027', shortBn: 'আগস্ট ২০২৭', shortEn: 'Aug 2027' },
+  { id: '2027-07', nameBn: 'জুলাই ২০২৭ (আষাঢ়)', nameEn: 'July 2027', shortBn: 'জুলাই ২০২৭', shortEn: 'Jul 2027' },
+  { id: '2027-06', nameBn: 'জুন ২০২৭ (জ্যৈষ্ঠ)', nameEn: 'June 2027', shortBn: 'জুন ২০২৭', shortEn: 'Jun 2027' },
+  { id: '2027-05', nameBn: 'মে ২০২৭ (বৈশাখ)', nameEn: 'May 2027', shortBn: 'মে ২০২৭', shortEn: 'May 2027' },
+  { id: '2027-04', nameBn: 'এপ্রিল ২০২৭ (চৈত্র)', nameEn: 'April 2027', shortBn: 'এপ্রিল ২০২৭', shortEn: 'Apr 2027' },
+  { id: '2027-03', nameBn: 'মার্চ ২০২৭ (ফাল্গুন)', nameEn: 'March 2027', shortBn: 'মার্চ ২০২৭', shortEn: 'Mar 2027' },
+  { id: '2027-02', nameBn: 'ফেব্রুয়ারি ২০২৭ (মাঘ)', nameEn: 'February 2027', shortBn: 'ফেব্রুয়ারি ২০২৭', shortEn: 'Feb 2027' },
+  { id: '2027-01', nameBn: 'জানুয়ারি ২০২৭ (পৌষ)', nameEn: 'January 2027', shortBn: 'জানুয়ারি ২০২৭', shortEn: 'Jan 2027' },
+
+  // 2026 Puja Cycle (Durga Puja 2026)
+  { id: '2026-12', nameBn: 'ডিসেম্বর ২০২৬ (অগ্রহায়ণ)', nameEn: 'December 2026', shortBn: 'ডিসেম্বর ২০২৬', shortEn: 'Dec 2026' },
+  { id: '2026-11', nameBn: 'নভেম্বর ২০২৬ (কার্তিক)', nameEn: 'November 2026', shortBn: 'নভেম্বর ২০২৬', shortEn: 'Nov 2026' },
   { id: '2026-10', nameBn: 'অক্টোবর ২০২৬ (আশ্বিন - পূজা মাস)', nameEn: 'October 2026 (Puja Month)', shortBn: 'অক্টোবর ২০২৬', shortEn: 'Oct 2026' },
   { id: '2026-09', nameBn: 'সেপ্টেম্বর ২০২৬ (ভাদ্র)', nameEn: 'September 2026', shortBn: 'সেপ্টেম্বর ২০২৬', shortEn: 'Sep 2026' },
   { id: '2026-08', nameBn: 'আগস্ট ২০২৬ (শ্রাবণ)', nameEn: 'August 2026', shortBn: 'আগস্ট ২০২৬', shortEn: 'Aug 2026' },
@@ -207,6 +224,8 @@ export const PUJA_CYCLE_MONTHS: PujaMonth[] = [
   { id: '2026-03', nameBn: 'মার্চ ২০২৬ (ফাল্গুন)', nameEn: 'March 2026', shortBn: 'মার্চ ২০২৬', shortEn: 'Mar 2026' },
   { id: '2026-02', nameBn: 'ফেব্রুয়ারি ২০২৬ (মাঘ)', nameEn: 'February 2026', shortBn: 'ফেব্রুয়ারি ২০২৬', shortEn: 'Feb 2026' },
   { id: '2026-01', nameBn: 'জানুয়ারি ২০২৬ (পৌষ)', nameEn: 'January 2026', shortBn: 'জানুয়ারি ২০২৬', shortEn: 'Jan 2026' },
+
+  // 2025 Cycle
   { id: '2025-12', nameBn: 'ডিসেম্বর ২০২৫ (অগ্রহায়ণ)', nameEn: 'December 2025', shortBn: 'ডিসেম্বর ২০২৫', shortEn: 'Dec 2025' },
   { id: '2025-11', nameBn: 'নভেম্বর ২০২৫ (কার্তিক)', nameEn: 'November 2025', shortBn: 'নভেম্বর ২০২৫', shortEn: 'Nov 2025' },
 ];
@@ -226,6 +245,45 @@ const COMMITTEE_NAGAD_NUMBER = '01623919385';
 const toBnDigits = (n: number | string): string => {
   const bn = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
   return String(n).replace(/[0-9]/g, d => bn[Number(d)]);
+};
+
+const BENGALI_MONTH_DICT: Record<string, { bn: string; en: string; seasonBn: string }> = {
+  '01': { bn: 'জানুয়ারি', en: 'January', seasonBn: 'পৌষ' },
+  '02': { bn: 'ফেব্রুয়ারি', en: 'February', seasonBn: 'মাঘ' },
+  '03': { bn: 'মার্চ', en: 'March', seasonBn: 'ফাল্গুন' },
+  '04': { bn: 'এপ্রিল', en: 'April', seasonBn: 'চৈত্র' },
+  '05': { bn: 'মে', en: 'May', seasonBn: 'বৈশাখ' },
+  '06': { bn: 'জুন', en: 'June', seasonBn: 'জ্যৈষ্ঠ' },
+  '07': { bn: 'জুলাই', en: 'July', seasonBn: 'আষাঢ়' },
+  '08': { bn: 'আগস্ট', en: 'August', seasonBn: 'শ্রাবণ' },
+  '09': { bn: 'সেপ্টেম্বর', en: 'September', seasonBn: 'ভাদ্র' },
+  '10': { bn: 'অক্টোবর', en: 'October', seasonBn: 'আশ্বিন - পূজা মাস' },
+  '11': { bn: 'নভেম্বর', en: 'November', seasonBn: 'কার্তিক' },
+  '12': { bn: 'ডিসেম্বর', en: 'December', seasonBn: 'অগ্রহায়ণ' },
+};
+
+export const formatMonthYear = (monthId: string, isShort = false, lang: 'bn' | 'en' = 'bn'): string => {
+  if (monthId.includes(',')) {
+    return monthId.split(',').map(m => formatMonthYear(m.trim(), isShort, lang)).join(lang === 'bn' ? ' ও ' : ' & ');
+  }
+  const parts = monthId.split('-');
+  if (parts.length === 2) {
+    const [y, m] = parts;
+    const info = BENGALI_MONTH_DICT[m];
+    if (info) {
+      const yearBn = toBnDigits(y);
+      if (lang === 'bn') {
+        return isShort
+          ? `${info.bn} ${yearBn}`
+          : `${info.bn} ${yearBn} (${info.seasonBn})`;
+      } else {
+        return isShort
+          ? `${info.en.slice(0, 3)} ${y}`
+          : m === '10' ? `${info.en} ${y} (Puja Month)` : `${info.en} ${y}`;
+      }
+    }
+  }
+  return monthId;
 };
 
 const MONTH_NAMES_BN = [
@@ -480,6 +538,8 @@ export default function App() {
   const [inputTrxId, setInputTrxId] = useState('');
   const [verificationResult, setVerificationResult] = useState<{ success: boolean; message: string; receipt?: any } | null>(null);
   const [copiedAccount, setCopiedAccount] = useState<'bKash' | 'Nagad' | null>(null);
+  const [isAdjustingDues, setIsAdjustingDues] = useState<boolean>(false);
+  const [selectedAdjustMonths, setSelectedAdjustMonths] = useState<string[]>([]);
 
   // Bill payment & settlement state
   const [payingBill, setPayingBill] = useState<Bill | null>(null);
@@ -513,6 +573,12 @@ export default function App() {
     const m = String(today.getMonth() + 1).padStart(2, '0');
     const d = String(today.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
+  }, [today]);
+
+  const currentRealMonthId = useMemo(() => {
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    return `${y}-${m}`;
   }, [today]);
 
   const [calendarYear, setCalendarYear] = useState<number>(() => today.getFullYear());
@@ -602,13 +668,43 @@ export default function App() {
     return Math.max(0, approvedUsers.length - monthPaidMembersCount);
   }, [approvedUsers.length, monthPaidMembersCount]);
 
+  const getMemberMonthStatus = (monthId: string, user: User | null): 'paid' | 'pending' | 'due' | 'current' | 'upcoming' => {
+    if (!user) return 'upcoming';
+    
+    const hasPaid = income.some(
+      x => x.type === 'contribution' &&
+           x.status === 'Confirmed' &&
+           (x.name === user.name || (x.senderPhone && x.senderPhone === user.phone)) &&
+           (x.month === monthId || (monthId === '2026-10' && !x.month))
+    );
+    if (hasPaid) return 'paid';
+
+    const hasPending = income.some(
+      x => x.type === 'contribution' &&
+           x.status === 'Pending' &&
+           (x.name === user.name || (x.senderPhone && x.senderPhone === user.phone)) &&
+           (x.month === monthId || (monthId === '2026-10' && !x.month))
+    );
+    if (hasPending) return 'pending';
+
+    if (monthId < currentRealMonthId) return 'due';
+    if (monthId === currentRealMonthId) return 'current';
+    return 'upcoming';
+  };
+
+  const memberDueMonths = useMemo(() => {
+    if (!currentUser) return [];
+    return PUJA_CYCLE_MONTHS
+      .filter(m => m.id < currentRealMonthId)
+      .slice(0, 12)
+      .filter(m => getMemberMonthStatus(m.id, currentUser) === 'due')
+      .sort((a, b) => a.id.localeCompare(b.id));
+  }, [currentUser, income, currentRealMonthId]);
+
   const isCurrentUserPaidThisMonth = useMemo(() => {
     if (!currentUser) return false;
-    return Boolean(
-      currentUser.paid ||
-      income.some(x => x.type === 'contribution' && x.status === 'Confirmed' && (x.name === currentUser.name || (x.senderPhone && x.senderPhone === currentUser.phone)) && (targetChadaMonth === 'all' ? true : (x.month === targetChadaMonth || (targetChadaMonth === '2026-10' && !x.month))))
-    );
-  }, [currentUser, income, targetChadaMonth]);
+    return getMemberMonthStatus(currentRealMonthId, currentUser) === 'paid' || Boolean(currentUser.paid);
+  }, [currentUser, income, currentRealMonthId]);
 
   // Mobile Push Notification Permission State
   const [pushPermission, setPushPermission] = useState<NotificationPermission>(() => {
@@ -716,6 +812,50 @@ export default function App() {
       }
     }
   }, [currentUser?.id, currentUser?.paid, currentDayOfMonth, isChadaWindowActive, isChadaOverdue, pushPermission]);
+
+  // Auto calculate member's dues, current month, and prefill bKash payment details
+  useEffect(() => {
+    if (tab === 'bkash-pay' && currentUser) {
+      if (!verifyPhone) {
+        setVerifyPhone(currentUser.phone || '');
+      }
+      const userCommitment = currentUser.monthlyCommitment || 1000;
+
+      const due = PUJA_CYCLE_MONTHS
+        .filter(m => m.id < currentRealMonthId)
+        .slice(0, 12)
+        .filter(m => getMemberMonthStatus(m.id, currentUser) === 'due')
+        .sort((a, b) => a.id.localeCompare(b.id));
+
+      const isCurrentPaidOrPending =
+        getMemberMonthStatus(currentRealMonthId, currentUser) === 'paid' ||
+        getMemberMonthStatus(currentRealMonthId, currentUser) === 'pending';
+
+      if (due.length > 0) {
+        setIsAdjustingDues(true);
+        const adjustList = [...due.map(m => m.id)];
+        if (!isCurrentPaidOrPending && !adjustList.includes(currentRealMonthId)) {
+          adjustList.push(currentRealMonthId);
+        }
+        setSelectedAdjustMonths(adjustList);
+        setChadaAmountInput(String(adjustList.length * userCommitment));
+        setSelectedChadaMonth(due[0].id);
+      } else {
+        setIsAdjustingDues(false);
+        setSelectedAdjustMonths([]);
+        setChadaAmountInput(String(userCommitment));
+
+        const firstAvailable = PUJA_CYCLE_MONTHS
+          .filter(m => m.id >= currentRealMonthId)
+          .sort((a, b) => a.id.localeCompare(b.id))
+          .find(m => {
+            const st = getMemberMonthStatus(m.id, currentUser);
+            return st !== 'paid' && st !== 'pending';
+          });
+        setSelectedChadaMonth(firstAvailable ? firstAvailable.id : currentRealMonthId);
+      }
+    }
+  }, [tab, currentUser?.id, currentUser?.monthlyCommitment, currentRealMonthId]);
 
   // Live Cloud Firestore Synchronizer (Active when Firebase credentials are configured)
   useEffect(() => {
@@ -848,12 +988,17 @@ export default function App() {
     });
   }, [bills, expenseTab, expenseQuery]);
 
-  const getMonthLabel = (monthId?: string, isShort = false) => {
-    if (!monthId) return lang === 'bn' ? 'অক্টোবর ২০২৬' : 'Oct 2026';
+  const getMonthLabel = (monthId?: string, isShort = false): string => {
+    if (!monthId) return lang === 'bn' ? 'চলতি মাস' : 'Current Month';
+    if (monthId.includes(',')) {
+      return monthId.split(',').map(m => getMonthLabel(m.trim(), isShort)).join(lang === 'bn' ? ' ও ' : ' & ');
+    }
     const found = PUJA_CYCLE_MONTHS.find(m => m.id === monthId || m.nameBn.includes(monthId) || m.shortBn === monthId);
-    if (!found) return monthId;
-    if (isShort) return lang === 'bn' ? found.shortBn : found.shortEn;
-    return lang === 'bn' ? found.nameBn : found.nameEn;
+    if (found) {
+      if (isShort) return lang === 'bn' ? found.shortBn : found.shortEn;
+      return lang === 'bn' ? found.nameBn : found.nameEn;
+    }
+    return formatMonthYear(monthId, isShort, lang);
   };
 
   const filteredChadaTotal = useMemo(() => {
@@ -1232,8 +1377,6 @@ export default function App() {
       return;
     }
 
-    const nAmount = Number(chadaAmountInput) || 1000;
-
     // Check duplicate confirmed TrxID
     const duplicate = income.find(
       x => x.trxId && x.trxId.toUpperCase() === cleanTrx && x.status === 'Confirmed'
@@ -1248,52 +1391,73 @@ export default function App() {
       return;
     }
 
-    const newId = Date.now();
-    const newIncome: Income = {
-      id: newId,
+    const monthsToProcess = (isAdjustingDues && selectedAdjustMonths.length > 0)
+      ? selectedAdjustMonths
+      : [selectedChadaMonth];
+
+    if (monthsToProcess.length === 0) {
+      notify(lang === 'bn' ? 'অন্তত একটি মাস নির্বাচন করুন' : 'Select at least one month');
+      return;
+    }
+
+    const nAmount = Number(chadaAmountInput) || (currentUser?.monthlyCommitment || 1000);
+    const perMonthAmount = Math.max(1, Math.round(nAmount / monthsToProcess.length));
+
+    const newIncomes: Income[] = monthsToProcess.map((mId, idx) => ({
+      id: Date.now() + idx,
       type: 'contribution',
       name: currentUser?.name || 'Member',
-      amount: nAmount,
+      amount: perMonthAmount,
       day: '—',
       method: chadaMethod,
-      status: 'Pending', // Pending admin verification
+      status: 'Pending',
       date: lang === 'bn' ? 'এইমাত্র' : 'Just now',
       createdBy: currentUser?.name || 'Member',
       trxId: cleanTrx,
       senderPhone: cleanSender,
-      month: selectedChadaMonth
-    };
+      month: mId
+    }));
 
-    setIncome(prev => [newIncome, ...prev]);
-    saveIncomeToFirestore(newIncome).catch(err => console.warn('Cloud save income failed:', err));
+    setIncome(prev => [...newIncomes, ...prev]);
+    newIncomes.forEach(item => {
+      saveIncomeToFirestore(item).catch(err => console.warn('Cloud save income failed:', err));
+    });
+
+    const monthSummaryStr = monthsToProcess.map(m => getMonthLabel(m, true)).join(' ও ');
 
     // Admin Notification
     setNotifications(prev => [
       {
         id: Date.now(),
-        title: lang === 'bn' ? 'নতুন চাঁদা যাচাই প্রয়োজন' : 'New Chada Verification Needed',
-        body: `${currentUser?.name || 'সদস্য'} - ${fmt(nAmount)} (${chadaMethod}, TrxID: ${cleanTrx}, ${getMonthLabel(selectedChadaMonth, true)})। স্টেটমেন্ট মিলিয়ে অনুমোদন করুন।`,
+        title: monthsToProcess.length > 1
+          ? (lang === 'bn' ? 'চাঁদা ও বকেয়া সমন্বয় যাচাই প্রয়োজন' : 'Chada Due Adjustment Verification')
+          : (lang === 'bn' ? 'নতুন চাঁদা যাচাই প্রয়োজন' : 'New Chada Verification Needed'),
+        body: `${currentUser?.name || 'সদস্য'} - ${fmt(nAmount)} (${chadaMethod}, TrxID: ${cleanTrx}, মাস: ${monthSummaryStr})। স্টেটমেন্ট মিলিয়ে অনুমোদন করুন।`,
         color: 'gold',
         read: false,
         time: lang === 'bn' ? 'এইমাত্র' : 'Just now',
         entityType: 'income',
-        entityId: newId
+        entityId: newIncomes[0].id
       },
       ...prev
     ]);
 
     setVerificationResult({
       success: true,
-      message: lang === 'bn'
-        ? 'আপনার চাঁদার TrxID সফলভাবে জমা হয়েছে! অ্যাডমিন স্টেটমেন্ট যাচাই করে অনুমোদন করলে চাঁদা নিশ্চিত হবে।'
-        : 'TrxID submitted! Awaiting Admin verification against statement.',
+      message: monthsToProcess.length > 1
+        ? (lang === 'bn'
+            ? `আপনার ${toBnDigits(monthsToProcess.length)} মাসের চাঁদা ও বকেয়া সমন্বয়ের TrxID সফলভাবে জমা হয়েছে! অ্যাডমিন স্টেটমেন্ট যাচাই করে অনুমোদন দিলে চাঁদা নিশ্চিত হবে।`
+            : `TrxID submitted for ${monthsToProcess.length} months adjustment! Awaiting Admin verification.`)
+        : (lang === 'bn'
+            ? 'আপনার চাঁদার TrxID সফলভাবে জমা হয়েছে! অ্যাডমিন স্টেটমেন্ট যাচাই করে অনুমোদন করলে চাঁদা নিশ্চিত হবে।'
+            : 'TrxID submitted! Awaiting Admin verification against statement.'),
       receipt: {
         name: currentUser?.name,
         phone: cleanSender,
         amount: nAmount,
         method: chadaMethod,
         trxId: cleanTrx,
-        month: getMonthLabel(selectedChadaMonth, true),
+        month: monthSummaryStr,
         date: new Date().toLocaleString()
       }
     });
@@ -1352,13 +1516,17 @@ export default function App() {
     let contributionAmount = 0;
     let isContribution = false;
 
+    const targetIncome = income.find(x => x.id === id);
+    const targetTrx = targetIncome?.trxId;
+
     setIncome(prev => prev.map(x => {
-      if (x.id === id) {
+      if (x.id === id || (targetTrx && x.trxId && x.trxId === targetTrx && x.status === 'Pending')) {
         if (x.type === 'contribution') {
           contributionMember = x.name;
-          contributionAmount = x.amount;
+          contributionAmount += x.amount;
           isContribution = true;
         }
+        updateIncomeStatusInFirestore(x.id, 'Confirmed', undefined, currentUser?.name).catch(err => console.warn('Cloud approve income error:', err));
         return { ...x, status: 'Confirmed' };
       }
       return x;
@@ -1373,8 +1541,7 @@ export default function App() {
 
     setBills(prev => prev.map(x => x.id === id ? { ...x, status: 'Approved' } : x));
     setSelectedReviewBill(prev => prev && prev.id === id ? { ...prev, status: 'Approved' } : prev);
-    setSelectedIncome(prev => prev && prev.id === id ? { ...prev, status: 'Confirmed' } : prev);
-    updateIncomeStatusInFirestore(id, 'Confirmed', undefined, currentUser?.name).catch(err => console.warn('Cloud approve income error:', err));
+    setSelectedIncome(prev => prev && (prev.id === id || (targetTrx && prev.trxId === targetTrx)) ? { ...prev, status: 'Confirmed' } : prev);
     updateBillStatusInFirestore(id, 'Approved').catch(err => console.warn('Cloud approve bill error:', err));
 
     setNotifications(prev => [
@@ -1395,11 +1562,19 @@ export default function App() {
 
   // Reject income or bill
   const reject = (id: number, reason: string = 'অ্যাডমিন কর্তৃক বাতিল / স্টেটমেন্ট মেলেনি') => {
-    setIncome(prev => prev.map(x => x.id === id ? { ...x, status: 'Rejected', rejectReason: reason } : x));
+    const targetIncome = income.find(x => x.id === id);
+    const targetTrx = targetIncome?.trxId;
+
+    setIncome(prev => prev.map(x => {
+      if (x.id === id || (targetTrx && x.trxId && x.trxId === targetTrx && x.status === 'Pending')) {
+        updateIncomeStatusInFirestore(x.id, 'Rejected', reason, currentUser?.name).catch(err => console.warn('Cloud reject income error:', err));
+        return { ...x, status: 'Rejected', rejectReason: reason };
+      }
+      return x;
+    }));
     setBills(prev => prev.map(x => x.id === id ? { ...x, status: 'Rejected', rejectReason: reason } : x));
     setSelectedReviewBill(prev => prev && prev.id === id ? { ...prev, status: 'Rejected', rejectReason: reason } : prev);
-    setSelectedIncome(prev => prev && prev.id === id ? { ...prev, status: 'Rejected', rejectReason: reason } : prev);
-    updateIncomeStatusInFirestore(id, 'Rejected', reason, currentUser?.name).catch(err => console.warn('Cloud reject income error:', err));
+    setSelectedIncome(prev => prev && (prev.id === id || (targetTrx && prev.trxId === targetTrx)) ? { ...prev, status: 'Rejected', rejectReason: reason } : prev);
     updateBillStatusInFirestore(id, 'Rejected', reason).catch(err => console.warn('Cloud reject bill error:', err));
     notify(lang === 'bn' ? 'আবেদনটি বাতিল করা হয়েছে' : 'Rejected');
   };
@@ -2667,29 +2842,253 @@ END:VCALENDAR`;
               </button>
             </div>
 
-            {/* Month Selection */}
-            <label>{lang === 'bn' ? '২. কোন মাসের চাঁদা পরিশোধ করছেন?' : '2. For which month are you paying Chada?'}</label>
-            <select
-              className="field"
-              value={selectedChadaMonth}
-              onChange={e => setSelectedChadaMonth(e.target.value)}
-            >
-              {PUJA_CYCLE_MONTHS.map(m => (
-                <option key={m.id} value={m.id}>
-                  {lang === 'bn' ? m.nameBn : m.nameEn}
-                </option>
-              ))}
-            </select>
+            {/* DUE DETECTION & ADJUSTMENT SECTION */}
+            {memberDueMonths.length > 0 && (
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, #fffaf3 0%, #fff3e6 100%)',
+                  border: '1.5px solid #f97316',
+                  borderRadius: 18,
+                  padding: '16px',
+                  marginBottom: 16,
+                  boxShadow: '0 3px 12px rgba(249, 115, 22, 0.12)'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: '#ffedd5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c2410c' }}>
+                      <AlertTriangle size={18} />
+                    </div>
+                    <div>
+                      <strong style={{ fontSize: 13.5, color: '#9a3412', display: 'block' }}>
+                        {lang === 'bn' ? `পূর্ববর্তী ${toBnDigits(memberDueMonths.length)} মাসের চাঁদা বকেয়া আছে` : `Previous ${memberDueMonths.length} Months Due`}
+                      </strong>
+                      <span style={{ fontSize: 11, color: '#c2410c' }}>
+                        {lang === 'bn' ? `মোট বকেয়া: ${fmt(memberDueMonths.length * (currentUser?.monthlyCommitment || 1000))}` : `Total Due: ${fmt(memberDueMonths.length * (currentUser?.monthlyCommitment || 1000))}`}
+                      </span>
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 10.5, background: '#ea580c', color: '#fff', padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>
+                    {lang === 'bn' ? 'সমন্বয় প্রযোজ্য' : 'Adjustment Available'}
+                  </span>
+                </div>
+
+                <p style={{ fontSize: 12, color: '#7c2d12', margin: '0 0 12px', lineHeight: 1.5 }}>
+                  {lang === 'bn'
+                    ? `আপনার বিগত ${memberDueMonths.map(m => getMonthLabel(m.id, true)).join(', ')} মাসের চাঁদা বকেয়া আছে। আপনি কি চলতি মাসের সাথে বকেয়া সমন্বয় (Adjust) করে একসাথে পাঠাতে চান?`
+                    : `You have overdue chada for ${memberDueMonths.map(m => getMonthLabel(m.id, true)).join(', ')}. Would you like to adjust and pay remaining dues together with current month?`}
+                </p>
+
+                {/* Adjustment Mode Buttons */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAdjustingDues(true);
+                      const userCommitment = currentUser?.monthlyCommitment || 1000;
+                      const toInclude = [...memberDueMonths.map(m => m.id)];
+                      if (getMemberMonthStatus(currentRealMonthId, currentUser) !== 'paid' && getMemberMonthStatus(currentRealMonthId, currentUser) !== 'pending' && !toInclude.includes(currentRealMonthId)) {
+                        toInclude.push(currentRealMonthId);
+                      }
+                      setSelectedAdjustMonths(toInclude);
+                      setChadaAmountInput(String(toInclude.length * userCommitment));
+                    }}
+                    style={{
+                      padding: '10px 10px',
+                      borderRadius: 12,
+                      fontWeight: 700,
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      background: isAdjustingDues ? '#ea580c' : '#fff',
+                      color: isAdjustingDues ? '#fff' : '#9a3412',
+                      border: isAdjustingDues ? '1.5px solid #c2410c' : '1.5px solid #fdba74',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6,
+                      boxShadow: isAdjustingDues ? '0 2px 6px rgba(234, 88, 12, 0.3)' : 'none'
+                    }}
+                  >
+                    <CheckCircle2 size={16} />
+                    {lang === 'bn' ? 'বকেয়া সমন্বয় করুন' : 'Adjust with Dues'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAdjustingDues(false);
+                      const userCommitment = currentUser?.monthlyCommitment || 1000;
+                      setSelectedChadaMonth(memberDueMonths[0]?.id || currentRealMonthId);
+                      setChadaAmountInput(String(userCommitment));
+                    }}
+                    style={{
+                      padding: '10px 10px',
+                      borderRadius: 12,
+                      fontWeight: 700,
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      background: !isAdjustingDues ? '#475569' : '#fff',
+                      color: !isAdjustingDues ? '#fff' : '#475569',
+                      border: !isAdjustingDues ? '1.5px solid #334155' : '1.5px solid #cbd5e1',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6,
+                      boxShadow: !isAdjustingDues ? '0 2px 6px rgba(71, 85, 105, 0.3)' : 'none'
+                    }}
+                  >
+                    {lang === 'bn' ? 'শুধুমাত্র ১ মাস দিন' : 'Pay Single Month'}
+                  </button>
+                </div>
+
+                {/* Interactive Multi-Month Checklist if adjusting dues */}
+                {isAdjustingDues && (
+                  <div style={{ background: '#fff', border: '1px solid #fdba74', borderRadius: 12, padding: '12px', marginTop: 12 }}>
+                    <span style={{ fontSize: 11.5, fontWeight: 700, color: '#9a3412', display: 'block', marginBottom: 8 }}>
+                      {lang === 'bn' ? 'সমন্বয়ের জন্য নির্বাচিত মাসসমূহ:' : 'Months selected for adjustment:'}
+                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {(() => {
+                        const candidateMonths = [...memberDueMonths];
+                        if (getMemberMonthStatus(currentRealMonthId, currentUser) !== 'paid' && getMemberMonthStatus(currentRealMonthId, currentUser) !== 'pending') {
+                          if (!candidateMonths.some(x => x.id === currentRealMonthId)) {
+                            candidateMonths.push({
+                              id: currentRealMonthId,
+                              nameBn: getMonthLabel(currentRealMonthId, false),
+                              nameEn: getMonthLabel(currentRealMonthId, false),
+                              shortBn: getMonthLabel(currentRealMonthId, true),
+                              shortEn: getMonthLabel(currentRealMonthId, true)
+                            });
+                          }
+                        }
+                        const userCommitment = currentUser?.monthlyCommitment || 1000;
+
+                        return candidateMonths.map(m => {
+                          const isChecked = selectedAdjustMonths.includes(m.id);
+                          const isCurrent = m.id === currentRealMonthId;
+
+                          return (
+                            <label
+                              key={m.id}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '8px 10px',
+                                borderRadius: 8,
+                                background: isChecked ? '#fff7ed' : '#fafafa',
+                                border: isChecked ? '1.5px solid #fb923c' : '1px solid #e5e5e5',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={e => {
+                                    let next: string[];
+                                    if (e.target.checked) {
+                                      next = [...selectedAdjustMonths, m.id];
+                                    } else {
+                                      next = selectedAdjustMonths.filter(x => x !== m.id);
+                                    }
+                                    setSelectedAdjustMonths(next);
+                                    setChadaAmountInput(String(next.length * userCommitment));
+                                  }}
+                                  style={{ width: 16, height: 16, accentColor: '#ea580c' }}
+                                />
+                                <span style={{ fontSize: 12.5, fontWeight: isChecked ? 700 : 500, color: '#1c1917' }}>
+                                  🗓️ {getMonthLabel(m.id, true)} {isCurrent ? (lang === 'bn' ? '(চলতি মাস)' : '(Current)') : (lang === 'bn' ? '(বকেয়া মাস)' : '(Due Month)')}
+                                </span>
+                              </div>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: isChecked ? '#c2410c' : '#78716c' }}>
+                                {fmt(userCommitment)}
+                              </span>
+                            </label>
+                          );
+                        });
+                      })()}
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 8, borderTop: '1px dashed #fdba74' }}>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: '#9a3412' }}>
+                        {lang === 'bn' ? `মোট সমন্বিত পরিমাণ (${toBnDigits(selectedAdjustMonths.length)} মাস):` : `Total Adjusted (${selectedAdjustMonths.length} mos):`}
+                      </span>
+                      <strong style={{ fontSize: 16, color: '#ea580c', fontWeight: 800 }}>
+                        {fmt(selectedAdjustMonths.length * (currentUser?.monthlyCommitment || 1000))}
+                      </strong>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Month Selection (For Single Month or when no dues) */}
+            {(!isAdjustingDues || memberDueMonths.length === 0) && (
+              <>
+                <label>{lang === 'bn' ? '২. কোন মাসের চাঁদা পরিশোধ করছেন?' : '2. For which month are you paying Chada?'}</label>
+                <select
+                  className="field"
+                  value={selectedChadaMonth}
+                  onChange={e => {
+                    setSelectedChadaMonth(e.target.value);
+                    setChadaAmountInput(String(currentUser?.monthlyCommitment || 1000));
+                  }}
+                >
+                  {PUJA_CYCLE_MONTHS.map(m => {
+                    const status = getMemberMonthStatus(m.id, currentUser);
+                    const isPaid = status === 'paid';
+                    const isPending = status === 'pending';
+                    const isDue = status === 'due';
+                    const isCurrent = status === 'current';
+
+                    let prefix = '';
+                    let suffix = '';
+                    if (isPaid) {
+                      prefix = '✓ ';
+                      suffix = lang === 'bn' ? ' (পরিশোধিত — সম্পন্ন)' : ' (Paid - Done)';
+                    } else if (isPending) {
+                      prefix = '🕒 ';
+                      suffix = lang === 'bn' ? ' (যাচাইাধীন — TrxID জমা দেওয়া হয়েছে)' : ' (Pending Verification)';
+                    } else if (isDue) {
+                      prefix = '⚠️ ';
+                      suffix = lang === 'bn' ? ' (বকেয়া মাস)' : ' (Due Month)';
+                    } else if (isCurrent) {
+                      prefix = '📌 ';
+                      suffix = lang === 'bn' ? ' (চলতি মাস)' : ' (Current Month)';
+                    }
+
+                    return (
+                      <option
+                        key={m.id}
+                        value={m.id}
+                        disabled={isPaid || isPending}
+                        style={isPaid ? { color: '#16a34a' } : isPending ? { color: '#d97706' } : isDue ? { color: '#dc2626', fontWeight: 700 } : {}}
+                      >
+                        {prefix}{lang === 'bn' ? m.nameBn : m.nameEn}{suffix}
+                      </option>
+                    );
+                  })}
+                </select>
+              </>
+            )}
 
             {/* Amount Input */}
-            <label>{lang === 'bn' ? '৩. চাঁদার পরিমাণ' : '3. Chada Amount'}</label>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
+              <label style={{ margin: 0 }}>
+                {lang === 'bn' ? '৩. চাঁদার পরিমাণ' : '3. Chada Amount'}
+              </label>
+              {isAdjustingDues && selectedAdjustMonths.length > 1 && (
+                <span style={{ fontSize: 11, color: '#ea580c', fontWeight: 700 }}>
+                  {lang === 'bn' ? `(${toBnDigits(selectedAdjustMonths.length)} মাসের সমন্বিত মোট)` : `(${selectedAdjustMonths.length} Months Adjusted)`}
+                </span>
+              )}
+            </div>
             <div className="amount-display">
               <span>৳</span>
               <input
                 value={chadaAmountInput}
                 onChange={e => setChadaAmountInput(e.target.value.replace(/[^0-9]/g, ''))}
                 inputMode="numeric"
-                placeholder="1000"
+                placeholder={String(currentUser?.monthlyCommitment || 1000)}
               />
             </div>
 
