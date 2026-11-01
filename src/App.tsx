@@ -189,45 +189,61 @@ export interface MerchantTransaction {
 const defaultUsers: User[] = [];
 
 export interface PujaMonth {
-  id: string; // e.g. '2026-10'
+  id: string; // e.g. '2026-11'
   nameBn: string;
   nameEn: string;
   shortBn: string;
   shortEn: string;
+  cycleMonthIndex?: number;
+  isPujaMonth?: boolean;
+  cycleId?: string;
 }
 
+export const CURRENT_PUJA_CYCLE = {
+  id: '2026-2027',
+  titleBn: 'শারদীয় দুর্গোৎসব ২০২৭ চাঁদা চক্র',
+  titleEn: 'Durga Puja 2027 Contribution Cycle',
+  subBn: '১ নভেম্বর ২০২৬ হতে অক্টোবর ২০২৭ (পূজা মাস)',
+  subEn: '1 Nov 2026 to Oct 2027 (Puja Month)',
+  startMonth: '2026-11',
+  endMonth: '2027-10',
+  pujaMonthId: '2027-10',
+  pujaYear: 2027
+};
+
+export const CURRENT_CYCLE_MONTHS: (PujaMonth & { cycleMonthIndex: number })[] = [
+  { id: '2026-11', cycleMonthIndex: 1, nameBn: 'নভেম্বর ২০২৬ (কার্তিক — ১ম মাস)', nameEn: 'November 2026 (Month 1)', shortBn: 'নভেম্বর ২০২৬ (১ম মাস)', shortEn: 'Nov 2026 (M1)', cycleId: '2026-2027' },
+  { id: '2026-12', cycleMonthIndex: 2, nameBn: 'ডিসেম্বর ২০২৬ (অগ্রহায়ণ — ২য় মাস)', nameEn: 'December 2026 (Month 2)', shortBn: 'ডিসেম্বর ২০২৬ (২য় মাস)', shortEn: 'Dec 2026 (M2)', cycleId: '2026-2027' },
+  { id: '2027-01', cycleMonthIndex: 3, nameBn: 'জানুয়ারি ২০২৭ (পৌষ — ৩য় মাস)', nameEn: 'January 2027 (Month 3)', shortBn: 'জানুয়ারি ২০২৭ (৩য় মাস)', shortEn: 'Jan 2027 (M3)', cycleId: '2026-2027' },
+  { id: '2027-02', cycleMonthIndex: 4, nameBn: 'ফেব্রুয়ারি ২০২৭ (মাঘ — ৪র্থ মাস)', nameEn: 'February 2027 (Month 4)', shortBn: 'ফেব্রুয়ারি ২০২৭ (৪র্থ মাস)', shortEn: 'Feb 2027 (M4)', cycleId: '2026-2027' },
+  { id: '2027-03', cycleMonthIndex: 5, nameBn: 'মার্চ ২০২৭ (ফাল্গুন — ৫ম মাস)', nameEn: 'March 2027 (Month 5)', shortBn: 'মার্চ ২০২৭ (৫ম মাস)', shortEn: 'Mar 2027 (M5)', cycleId: '2026-2027' },
+  { id: '2027-04', cycleMonthIndex: 6, nameBn: 'এপ্রিল ২০২৭ (চৈত্র — ৬ষ্ঠ মাস)', nameEn: 'April 2027 (Month 6)', shortBn: 'এপ্রিল ২০২৭ (৬ষ্ঠ মাস)', shortEn: 'Apr 2027 (M6)', cycleId: '2026-2027' },
+  { id: '2027-05', cycleMonthIndex: 7, nameBn: 'মে ২০২৭ (বৈশাখ — ৭ম মাস)', nameEn: 'May 2027 (Month 7)', shortBn: 'মে ২০২৭ (৭ম মাস)', shortEn: 'May 2027 (M7)', cycleId: '2026-2027' },
+  { id: '2027-06', cycleMonthIndex: 8, nameBn: 'জুন ২০২৭ (জ্যৈষ্ঠ — ৮ম মাস)', nameEn: 'June 2027 (Month 8)', shortBn: 'জুন ২০২৭ (৮ম মাস)', shortEn: 'Jun 2027 (M8)', cycleId: '2026-2027' },
+  { id: '2027-07', cycleMonthIndex: 9, nameBn: 'জুলাই ২০২৭ (আষাঢ় — ৯ম মাস)', nameEn: 'July 2027 (Month 9)', shortBn: 'জুলাই ২০২৭ (৯ম মাস)', shortEn: 'Jul 2027 (M9)', cycleId: '2026-2027' },
+  { id: '2027-08', cycleMonthIndex: 10, nameBn: 'আগস্ট ২০২৭ (শ্রাবণ — ১০ম মাস)', nameEn: 'August 2027 (Month 10)', shortBn: 'আগস্ট ২০২৭ (১০ম মাস)', shortEn: 'Aug 2027 (M10)', cycleId: '2026-2027' },
+  { id: '2027-09', cycleMonthIndex: 11, nameBn: 'সেপ্টেম্বর ২০২৭ (ভাদ্র — ১১তম মাস)', nameEn: 'September 2027 (Month 11)', shortBn: 'সেপ্টেম্বর ২০২৭ (১১তম মাস)', shortEn: 'Sep 2027 (M11)', cycleId: '2026-2027' },
+  { id: '2027-10', cycleMonthIndex: 12, isPujaMonth: true, nameBn: 'অক্টোবর ২০২৭ (আশ্বিন — শারদীয় দুর্গাপূজা ২০২৭ / সমাপনী পূজা মাস)', nameEn: 'October 2027 (Durga Puja 2027 / Month 12)', shortBn: 'অক্টোবর ২০২৭ (পূজা মাস)', shortEn: 'Oct 2027 (Puja Month)', cycleId: '2026-2027' },
+];
+
+export const PREVIOUS_CYCLE_MONTHS: PujaMonth[] = [
+  { id: '2026-10', cycleMonthIndex: 12, isPujaMonth: true, nameBn: 'অক্টোবর ২০২৬ (আশ্বিন — বিগত দুর্গাপূজা ২০২৬ সম্পন্ন)', nameEn: 'October 2026 (Durga Puja 2026 Completed)', shortBn: 'অক্টোবর ২০২৬ (সম্পন্ন)', shortEn: 'Oct 2026 (Completed)', cycleId: '2025-2026' },
+  { id: '2026-09', nameBn: 'সেপ্টেম্বর ২০২৬ (ভাদ্র)', nameEn: 'September 2026', shortBn: 'সেপ্টেম্বর ২০২৬', shortEn: 'Sep 2026', cycleId: '2025-2026' },
+  { id: '2026-08', nameBn: 'আগস্ট ২০২৬ (শ্রাবণ)', nameEn: 'August 2026', shortBn: 'আগস্ট ২০২৬', shortEn: 'Aug 2026', cycleId: '2025-2026' },
+  { id: '2026-07', nameBn: 'জুলাই ২০২৬ (আষাঢ়)', nameEn: 'July 2026', shortBn: 'জুলাই ২০২৬', shortEn: 'Jul 2026', cycleId: '2025-2026' },
+  { id: '2026-06', nameBn: 'জুন ২০২৬ (জ্যৈষ্ঠ)', nameEn: 'June 2026', shortBn: 'জুন ২০২৬', shortEn: 'Jun 2026', cycleId: '2025-2026' },
+  { id: '2026-05', nameBn: 'মে ২০২৬ (বৈশাখ)', nameEn: 'May 2026', shortBn: 'মে ২০২৬', shortEn: 'May 2026', cycleId: '2025-2026' },
+  { id: '2026-04', nameBn: 'এপ্রিল ২০২৬ (চৈত্র)', nameEn: 'April 2026', shortBn: 'এপ্রিল ২০২৬', shortEn: 'Apr 2026', cycleId: '2025-2026' },
+  { id: '2026-03', nameBn: 'মার্চ ২০২৬ (ফাল্গুন)', nameEn: 'March 2026', shortBn: 'মার্চ ২০২৬', shortEn: 'Mar 2026', cycleId: '2025-2026' },
+  { id: '2026-02', nameBn: 'ফেব্রুয়ারি ২০২৬ (মাঘ)', nameEn: 'February 2026', shortBn: 'ফেব্রুয়ারি ২০২৬', shortEn: 'Feb 2026', cycleId: '2025-2026' },
+  { id: '2026-01', nameBn: 'জানুয়ারি ২০২৬ (পৌষ)', nameEn: 'January 2026', shortBn: 'জানুয়ারি ২০২৬', shortEn: 'Jan 2026', cycleId: '2025-2026' },
+  { id: '2025-12', nameBn: 'ডিসেম্বর ২০২৫ (অগ্রহায়ণ)', nameEn: 'December 2025', shortBn: 'ডিসেম্বর ২০২৫', shortEn: 'Dec 2025', cycleId: '2025-2026' },
+  { id: '2025-11', nameBn: 'নভেম্বর ২০২৫ (কার্তিক)', nameEn: 'November 2025', shortBn: 'নভেম্বর ২০২৫', shortEn: 'Nov 2025', cycleId: '2025-2026' },
+];
+
 export const PUJA_CYCLE_MONTHS: PujaMonth[] = [
-  // 2027 Puja Cycle (Durga Puja 2027)
-  { id: '2027-12', nameBn: 'ডিসেম্বর ২০২৭ (অগ্রহায়ণ)', nameEn: 'December 2027', shortBn: 'ডিসেম্বর ২০২৭', shortEn: 'Dec 2027' },
-  { id: '2027-11', nameBn: 'নভেম্বর ২০২৭ (কার্তিক)', nameEn: 'November 2027', shortBn: 'নভেম্বর ২০২৭', shortEn: 'Nov 2027' },
-  { id: '2027-10', nameBn: 'অক্টোবর ২০২৭ (আশ্বিন - পূজা মাস)', nameEn: 'October 2027 (Puja Month)', shortBn: 'অক্টোবর ২০২৭', shortEn: 'Oct 2027' },
-  { id: '2027-09', nameBn: 'সেপ্টেম্বর ২০২৭ (ভাদ্র)', nameEn: 'September 2027', shortBn: 'সেপ্টেম্বর ২০২৭', shortEn: 'Sep 2027' },
-  { id: '2027-08', nameBn: 'আগস্ট ২০২৭ (শ্রাবণ)', nameEn: 'August 2027', shortBn: 'আগস্ট ২০২৭', shortEn: 'Aug 2027' },
-  { id: '2027-07', nameBn: 'জুলাই ২০২৭ (আষাঢ়)', nameEn: 'July 2027', shortBn: 'জুলাই ২০২৭', shortEn: 'Jul 2027' },
-  { id: '2027-06', nameBn: 'জুন ২০২৭ (জ্যৈষ্ঠ)', nameEn: 'June 2027', shortBn: 'জুন ২০২৭', shortEn: 'Jun 2027' },
-  { id: '2027-05', nameBn: 'মে ২০২৭ (বৈশাখ)', nameEn: 'May 2027', shortBn: 'মে ২০২৭', shortEn: 'May 2027' },
-  { id: '2027-04', nameBn: 'এপ্রিল ২০২৭ (চৈত্র)', nameEn: 'April 2027', shortBn: 'এপ্রিল ২০২৭', shortEn: 'Apr 2027' },
-  { id: '2027-03', nameBn: 'মার্চ ২০২৭ (ফাল্গুন)', nameEn: 'March 2027', shortBn: 'মার্চ ২০২৭', shortEn: 'Mar 2027' },
-  { id: '2027-02', nameBn: 'ফেব্রুয়ারি ২০২৭ (মাঘ)', nameEn: 'February 2027', shortBn: 'ফেব্রুয়ারি ২০২৭', shortEn: 'Feb 2027' },
-  { id: '2027-01', nameBn: 'জানুয়ারি ২০২৭ (পৌষ)', nameEn: 'January 2027', shortBn: 'জানুয়ারি ২০২৭', shortEn: 'Jan 2027' },
-
-  // 2026 Puja Cycle (Durga Puja 2026)
-  { id: '2026-12', nameBn: 'ডিসেম্বর ২০২৬ (অগ্রহায়ণ)', nameEn: 'December 2026', shortBn: 'ডিসেম্বর ২০২৬', shortEn: 'Dec 2026' },
-  { id: '2026-11', nameBn: 'নভেম্বর ২০২৬ (কার্তিক)', nameEn: 'November 2026', shortBn: 'নভেম্বর ২০২৬', shortEn: 'Nov 2026' },
-  { id: '2026-10', nameBn: 'অক্টোবর ২০২৬ (আশ্বিন - পূজা মাস)', nameEn: 'October 2026 (Puja Month)', shortBn: 'অক্টোবর ২০২৬', shortEn: 'Oct 2026' },
-  { id: '2026-09', nameBn: 'সেপ্টেম্বর ২০২৬ (ভাদ্র)', nameEn: 'September 2026', shortBn: 'সেপ্টেম্বর ২০২৬', shortEn: 'Sep 2026' },
-  { id: '2026-08', nameBn: 'আগস্ট ২০২৬ (শ্রাবণ)', nameEn: 'August 2026', shortBn: 'আগস্ট ২০২৬', shortEn: 'Aug 2026' },
-  { id: '2026-07', nameBn: 'জুলাই ২০২৬ (আষাঢ়)', nameEn: 'July 2026', shortBn: 'জুলাই ২০২৬', shortEn: 'Jul 2026' },
-  { id: '2026-06', nameBn: 'জুন ২০২৬ (জ্যৈষ্ঠ)', nameEn: 'June 2026', shortBn: 'জুন ২০২৬', shortEn: 'Jun 2026' },
-  { id: '2026-05', nameBn: 'মে ২০২৬ (বৈশাখ)', nameEn: 'May 2026', shortBn: 'মে ২০২৬', shortEn: 'May 2026' },
-  { id: '2026-04', nameBn: 'এপ্রিল ২০২৬ (চৈত্র)', nameEn: 'April 2026', shortBn: 'এপ্রিল ২০২৬', shortEn: 'Apr 2026' },
-  { id: '2026-03', nameBn: 'মার্চ ২০২৬ (ফাল্গুন)', nameEn: 'March 2026', shortBn: 'মার্চ ২০২৬', shortEn: 'Mar 2026' },
-  { id: '2026-02', nameBn: 'ফেব্রুয়ারি ২০২৬ (মাঘ)', nameEn: 'February 2026', shortBn: 'ফেব্রুয়ারি ২০২৬', shortEn: 'Feb 2026' },
-  { id: '2026-01', nameBn: 'জানুয়ারি ২০২৬ (পৌষ)', nameEn: 'January 2026', shortBn: 'জানুয়ারি ২০২৬', shortEn: 'Jan 2026' },
-
-  // 2025 Cycle
-  { id: '2025-12', nameBn: 'ডিসেম্বর ২০২৫ (অগ্রহায়ণ)', nameEn: 'December 2025', shortBn: 'ডিসেম্বর ২০২৫', shortEn: 'Dec 2025' },
-  { id: '2025-11', nameBn: 'নভেম্বর ২০২৫ (কার্তিক)', nameEn: 'November 2025', shortBn: 'নভেম্বর ২০২৫', shortEn: 'Nov 2025' },
+  ...CURRENT_CYCLE_MONTHS,
+  ...PREVIOUS_CYCLE_MONTHS
 ];
 
 const defaultIncome: Income[] = [];
@@ -553,10 +569,18 @@ export default function App() {
   const [incomeSection, setIncomeSection] = useState<'chada' | 'pronami'>('chada');
   const [incomeTypeFilter, setIncomeTypeFilter] = useState<'all' | 'pronami' | 'contribution'>('all');
   const [incomeStatusFilter, setIncomeStatusFilter] = useState<'all' | 'Confirmed' | 'Pending' | 'Rejected'>('all');
-  const [incomeMonthFilter, setIncomeMonthFilter] = useState<string>('2026-10');
+  const [incomeMonthFilter, setIncomeMonthFilter] = useState<string>(() => {
+    const now = new Date();
+    const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    return ym < CURRENT_PUJA_CYCLE.startMonth ? CURRENT_PUJA_CYCLE.startMonth : ym;
+  });
   const [chadaMemberFilter, setChadaMemberFilter] = useState<'all' | 'paid' | 'unpaid'>('all');
   const [pronamiDayFilter, setPronamiDayFilter] = useState<string>('all');
-  const [selectedChadaMonth, setSelectedChadaMonth] = useState<string>('2026-10');
+  const [selectedChadaMonth, setSelectedChadaMonth] = useState<string>(() => {
+    const now = new Date();
+    const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    return ym < CURRENT_PUJA_CYCLE.startMonth ? CURRENT_PUJA_CYCLE.startMonth : ym;
+  });
   const [selectedIncome, setSelectedIncome] = useState<Income | null>(null);
   const [selectedReviewBill, setSelectedReviewBill] = useState<Bill | null>(null);
 
@@ -578,7 +602,8 @@ export default function App() {
   const currentRealMonthId = useMemo(() => {
     const y = today.getFullYear();
     const m = String(today.getMonth() + 1).padStart(2, '0');
-    return `${y}-${m}`;
+    const ym = `${y}-${m}`;
+    return ym < CURRENT_PUJA_CYCLE.startMonth ? CURRENT_PUJA_CYCLE.startMonth : ym;
   }, [today]);
 
   const [calendarYear, setCalendarYear] = useState<number>(() => today.getFullYear());
@@ -656,7 +681,7 @@ export default function App() {
 
   const pendingMembersCount = pendingMembers.length;
 
-  const targetChadaMonth = incomeMonthFilter === 'all' ? '2026-10' : incomeMonthFilter;
+  const targetChadaMonth = incomeMonthFilter === 'all' ? currentRealMonthId : incomeMonthFilter;
 
   const monthPaidMembersCount = useMemo(() => {
     return approvedUsers.filter(m =>
@@ -687,6 +712,8 @@ export default function App() {
     );
     if (hasPending) return 'pending';
 
+    // In active Puja Cycle (1 Nov 2026 - Oct 2027), only months >= startMonth can be 'due'
+    if (monthId < CURRENT_PUJA_CYCLE.startMonth) return 'upcoming';
     if (monthId < currentRealMonthId) return 'due';
     if (monthId === currentRealMonthId) return 'current';
     return 'upcoming';
@@ -694,16 +721,15 @@ export default function App() {
 
   const memberDueMonths = useMemo(() => {
     if (!currentUser) return [];
-    return PUJA_CYCLE_MONTHS
-      .filter(m => m.id < currentRealMonthId)
-      .slice(0, 12)
+    return CURRENT_CYCLE_MONTHS
+      .filter(m => m.id >= CURRENT_PUJA_CYCLE.startMonth && m.id < currentRealMonthId)
       .filter(m => getMemberMonthStatus(m.id, currentUser) === 'due')
       .sort((a, b) => a.id.localeCompare(b.id));
   }, [currentUser, income, currentRealMonthId]);
 
   const isCurrentUserPaidThisMonth = useMemo(() => {
     if (!currentUser) return false;
-    return getMemberMonthStatus(currentRealMonthId, currentUser) === 'paid' || Boolean(currentUser.paid);
+    return getMemberMonthStatus(currentRealMonthId, currentUser) === 'paid';
   }, [currentUser, income, currentRealMonthId]);
 
   // Mobile Push Notification Permission State
@@ -821,9 +847,8 @@ export default function App() {
       }
       const userCommitment = currentUser.monthlyCommitment || 1000;
 
-      const due = PUJA_CYCLE_MONTHS
-        .filter(m => m.id < currentRealMonthId)
-        .slice(0, 12)
+      const due = CURRENT_CYCLE_MONTHS
+        .filter(m => m.id >= CURRENT_PUJA_CYCLE.startMonth && m.id < currentRealMonthId)
         .filter(m => getMemberMonthStatus(m.id, currentUser) === 'due')
         .sort((a, b) => a.id.localeCompare(b.id));
 
@@ -845,7 +870,7 @@ export default function App() {
         setSelectedAdjustMonths([]);
         setChadaAmountInput(String(userCommitment));
 
-        const firstAvailable = PUJA_CYCLE_MONTHS
+        const firstAvailable = CURRENT_CYCLE_MONTHS
           .filter(m => m.id >= currentRealMonthId)
           .sort((a, b) => a.id.localeCompare(b.id))
           .find(m => {
@@ -1005,9 +1030,10 @@ export default function App() {
     return income
       .filter(x => x.type === 'contribution' && x.status === 'Confirmed')
       .filter(x => {
-        if (incomeMonthFilter === 'all') return true;
-        const itemMonth = x.month || '2026-10';
-        return itemMonth === incomeMonthFilter;
+        if (incomeMonthFilter === 'all') {
+          return x.month ? (x.month >= CURRENT_PUJA_CYCLE.startMonth && x.month <= CURRENT_PUJA_CYCLE.endMonth) : true;
+        }
+        return (x.month === incomeMonthFilter || (incomeMonthFilter === '2026-10' && !x.month));
       })
       .reduce((s, x) => s + x.amount, 0);
   }, [income, incomeMonthFilter]);
@@ -1016,23 +1042,28 @@ export default function App() {
     return income
       .filter(x => x.type === 'contribution')
       .filter(x => {
-        if (incomeMonthFilter === 'all') return true;
-        const itemMonth = x.month || '2026-10';
-        return itemMonth === incomeMonthFilter;
+        if (incomeMonthFilter === 'all') {
+          return x.month ? (x.month >= CURRENT_PUJA_CYCLE.startMonth && x.month <= CURRENT_PUJA_CYCLE.endMonth) : true;
+        }
+        return (x.month === incomeMonthFilter || (incomeMonthFilter === '2026-10' && !x.month));
       }).length;
   }, [income, incomeMonthFilter]);
 
   const monthConfirmedChada = useMemo(() => {
     return income
-      .filter(x => x.type === 'contribution' && x.status === 'Confirmed' && (incomeMonthFilter === 'all' ? true : (x.month === incomeMonthFilter || (incomeMonthFilter === '2026-10' && !x.month))))
+      .filter(x => x.type === 'contribution' && x.status === 'Confirmed' && (incomeMonthFilter === 'all' ? (x.month ? (x.month >= CURRENT_PUJA_CYCLE.startMonth && x.month <= CURRENT_PUJA_CYCLE.endMonth) : true) : (x.month === incomeMonthFilter || (incomeMonthFilter === '2026-10' && !x.month))))
       .reduce((s, x) => s + x.amount, 0);
   }, [income, incomeMonthFilter]);
 
   const annualChadaTotal = useMemo(() => {
     return income
-      .filter(x => x.type === 'contribution' && x.status === 'Confirmed')
+      .filter(x => x.type === 'contribution' && x.status === 'Confirmed' && (x.month ? (x.month >= CURRENT_PUJA_CYCLE.startMonth && x.month <= CURRENT_PUJA_CYCLE.endMonth) : false))
       .reduce((s, x) => s + x.amount, 0);
   }, [income]);
+
+  const annualCycleTarget = useMemo(() => {
+    return approvedUsers.reduce((sum, u) => sum + (u.monthlyCommitment || 1000), 0) * 12;
+  }, [approvedUsers]);
 
   const totalPronamiCollected = useMemo(() => {
     return income
@@ -2255,15 +2286,27 @@ END:VCALENDAR`;
                   onChange={e => setIncomeMonthFilter(e.target.value)}
                   aria-label="Filter by month"
                 >
-                  <option value="all">📅 {lang === 'bn' ? 'সব মাস' : 'All Months'}</option>
-                  {PUJA_CYCLE_MONTHS.map(m => {
-                    const count = income.filter(x => x.type === 'contribution' && (x.month === m.id || x.month === m.shortBn)).length;
-                    return (
-                      <option key={m.id} value={m.id}>
-                        {lang === 'bn' ? m.shortBn : m.shortEn} {count > 0 ? `(${toBnDigits(count)})` : ''}
-                      </option>
-                    );
-                  })}
+                  <option value="all">🌟 {lang === 'bn' ? 'সম্পূর্ণ ১২ মাসের পূজা চক্র (২০২৬-২০২৭)' : 'Full 12-Month Cycle (2026-2027)'}</option>
+                  <optgroup label={lang === 'bn' ? 'চলতি পূজা চক্র (১ নভেম্বর ২০২৬ — অক্টোবর ২০২৭)' : 'Current Puja Cycle (1 Nov 2026 — Oct 2027)'}>
+                    {CURRENT_CYCLE_MONTHS.map(m => {
+                      const count = income.filter(x => x.type === 'contribution' && x.status === 'Confirmed' && x.month === m.id).length;
+                      return (
+                        <option key={m.id} value={m.id}>
+                          {lang === 'bn' ? m.nameBn : m.nameEn} {m.id === currentRealMonthId ? (lang === 'bn' ? '⭐ চলতি মাস' : '⭐ Current') : ''} {count > 0 ? `(${toBnDigits(count)} জন)` : ''}
+                        </option>
+                      );
+                    })}
+                  </optgroup>
+                  <optgroup label={lang === 'bn' ? 'বিগত পূজা চক্র (সম্পন্ন)' : 'Past Completed Cycle'}>
+                    {PREVIOUS_CYCLE_MONTHS.map(m => {
+                      const count = income.filter(x => x.type === 'contribution' && x.status === 'Confirmed' && (x.month === m.id || (m.id === '2026-10' && !x.month))).length;
+                      return (
+                        <option key={m.id} value={m.id}>
+                          {lang === 'bn' ? m.nameBn : m.nameEn} {count > 0 ? `(${toBnDigits(count)} জন)` : ''}
+                        </option>
+                      );
+                    })}
+                  </optgroup>
                 </select>
               </div>
             )}
@@ -2471,8 +2514,15 @@ END:VCALENDAR`;
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 11, fontWeight: 700, color: isCurrentUserPaidThisMonth ? '#206b40' : '#e2136e' }}>
-                    {lang === 'bn' ? 'আমার মাসিক চাঁদা (চলতি মাস)' : 'My Monthly Chada (Current Month)'}
+                    {lang === 'bn'
+                      ? `আমার মাসিক চাঁদা (${getMonthLabel(currentRealMonthId, true)} — চলতি মাস)`
+                      : `My Monthly Chada (${getMonthLabel(currentRealMonthId, true)} — Current)`}
                   </span>
+                  {memberDueMonths.length > 0 && (
+                    <span style={{ fontSize: 10, background: '#fee2e2', color: '#dc2626', fontWeight: 800, padding: '1px 6px', borderRadius: 6, border: '1px solid #fca5a5' }}>
+                      {lang === 'bn' ? `⚠️ ${toBnDigits(memberDueMonths.length)} মাসের বকেয়া` : `⚠️ ${memberDueMonths.length} mo due`}
+                    </span>
+                  )}
                   <button
                     type="button"
                     onClick={() => {
@@ -2948,7 +2998,7 @@ END:VCALENDAR`;
                     </span>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                       {(() => {
-                        const candidateMonths = [...memberDueMonths];
+                        const candidateMonths: PujaMonth[] = [...memberDueMonths];
                         if (getMemberMonthStatus(currentRealMonthId, currentUser) !== 'paid' && getMemberMonthStatus(currentRealMonthId, currentUser) !== 'pending') {
                           if (!candidateMonths.some(x => x.id === currentRealMonthId)) {
                             candidateMonths.push({
@@ -3033,40 +3083,58 @@ END:VCALENDAR`;
                     setChadaAmountInput(String(currentUser?.monthlyCommitment || 1000));
                   }}
                 >
-                  {PUJA_CYCLE_MONTHS.map(m => {
-                    const status = getMemberMonthStatus(m.id, currentUser);
-                    const isPaid = status === 'paid';
-                    const isPending = status === 'pending';
-                    const isDue = status === 'due';
-                    const isCurrent = status === 'current';
+                  <optgroup label={lang === 'bn' ? 'চলতি পূজা চক্র (১ নভেম্বর ২০২৬ — অক্টোবর ২০২৭)' : 'Current Puja Cycle (1 Nov 2026 — Oct 2027)'}>
+                    {CURRENT_CYCLE_MONTHS.map(m => {
+                      const status = getMemberMonthStatus(m.id, currentUser);
+                      const isPaid = status === 'paid';
+                      const isPending = status === 'pending';
+                      const isDue = status === 'due';
+                      const isCurrent = status === 'current';
 
-                    let prefix = '';
-                    let suffix = '';
-                    if (isPaid) {
-                      prefix = '✓ ';
-                      suffix = lang === 'bn' ? ' (পরিশোধিত — সম্পন্ন)' : ' (Paid - Done)';
-                    } else if (isPending) {
-                      prefix = '🕒 ';
-                      suffix = lang === 'bn' ? ' (যাচাইাধীন — TrxID জমা দেওয়া হয়েছে)' : ' (Pending Verification)';
-                    } else if (isDue) {
-                      prefix = '⚠️ ';
-                      suffix = lang === 'bn' ? ' (বকেয়া মাস)' : ' (Due Month)';
-                    } else if (isCurrent) {
-                      prefix = '📌 ';
-                      suffix = lang === 'bn' ? ' (চলতি মাস)' : ' (Current Month)';
-                    }
+                      let prefix = '';
+                      let suffix = '';
+                      if (isPaid) {
+                        prefix = '✓ ';
+                        suffix = lang === 'bn' ? ' (পরিশোধিত — সম্পন্ন)' : ' (Paid - Done)';
+                      } else if (isPending) {
+                        prefix = '🕒 ';
+                        suffix = lang === 'bn' ? ' (যাচাইাধীন — TrxID জমা দেওয়া হয়েছে)' : ' (Pending Verification)';
+                      } else if (isDue) {
+                        prefix = '⚠️ ';
+                        suffix = lang === 'bn' ? ' (বকেয়া মাস)' : ' (Due Month)';
+                      } else if (isCurrent) {
+                        prefix = '📌 ';
+                        suffix = lang === 'bn' ? ' (চলতি মাস)' : ' (Current Month)';
+                      }
 
-                    return (
-                      <option
-                        key={m.id}
-                        value={m.id}
-                        disabled={isPaid || isPending}
-                        style={isPaid ? { color: '#16a34a' } : isPending ? { color: '#d97706' } : isDue ? { color: '#dc2626', fontWeight: 700 } : {}}
-                      >
-                        {prefix}{lang === 'bn' ? m.nameBn : m.nameEn}{suffix}
-                      </option>
-                    );
-                  })}
+                      return (
+                        <option
+                          key={m.id}
+                          value={m.id}
+                          disabled={isPaid || isPending}
+                          style={isPaid ? { color: '#16a34a' } : isPending ? { color: '#d97706' } : isDue ? { color: '#dc2626', fontWeight: 700 } : {}}
+                        >
+                          {prefix}{lang === 'bn' ? m.nameBn : m.nameEn}{suffix}
+                        </option>
+                      );
+                    })}
+                  </optgroup>
+                  <optgroup label={lang === 'bn' ? 'বিগত পূজা চক্র (সম্পন্ন)' : 'Past Completed Cycle'}>
+                    {PREVIOUS_CYCLE_MONTHS.map(m => {
+                      const status = getMemberMonthStatus(m.id, currentUser);
+                      const isPaid = status === 'paid';
+                      const isPending = status === 'pending';
+                      return (
+                        <option
+                          key={m.id}
+                          value={m.id}
+                          disabled={isPaid || isPending}
+                        >
+                          {isPaid ? '✓ ' : ''}{lang === 'bn' ? m.nameBn : m.nameEn}{isPaid ? (lang === 'bn' ? ' (পরিশোধিত)' : ' (Paid)') : ''}
+                        </option>
+                      );
+                    })}
+                  </optgroup>
                 </select>
               </>
             )}
@@ -3276,40 +3344,55 @@ END:VCALENDAR`;
               <>
                 {/* Month Summary KPI Banner */}
                 <div style={{ background: '#fdf9f4', border: '1.5px solid #ebdccb', borderRadius: 18, padding: '16px', marginBottom: 14 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 6 }}>
                     <span style={{ fontSize: 13, fontWeight: 800, color: '#8d1717', display: 'flex', alignItems: 'center', gap: 6 }}>
                       <CalendarDays size={16} />
                       {incomeMonthFilter === 'all'
-                        ? (lang === 'bn' ? '১২ মাসের সর্বমোট চাঁদা' : 'All 12 Months Total')
-                        : `${getMonthLabel(incomeMonthFilter, true)} এর চাঁদা`}
+                        ? (lang === 'bn' ? 'শারদীয় দুর্গোৎসব ২০২৭ চাঁদা চক্র (১ নভেম্বর ’২৬ – অক্টোবর ’২৭)' : 'Durga Puja 2027 Cycle (1 Nov ’26 – Oct ’27)')
+                        : `${getMonthLabel(incomeMonthFilter, false)} এর চাঁদা`}
                     </span>
                     <span className="demo-pill" style={{ background: '#faeade', color: '#8d1717', fontWeight: 700 }}>
-                      {incomeMonthFilter === 'all' ? (lang === 'bn' ? '১২ মাসের চক্র' : '12-Month Cycle') : (lang === 'bn' ? 'চলতি মাস' : 'Month')}
+                      {incomeMonthFilter === 'all'
+                        ? (lang === 'bn' ? '১২ মাসের চক্র' : '12-Month Cycle')
+                        : incomeMonthFilter === currentRealMonthId
+                        ? (lang === 'bn' ? 'চলতি মাস' : 'Current Month')
+                        : (lang === 'bn' ? 'নির্বাচিত মাস' : 'Selected Month')}
                     </span>
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, background: 'white', borderRadius: 14, padding: '12px 14px', border: '1px solid #ebd9c5' }}>
                     <div>
                       <span style={{ fontSize: 11, color: '#7a6a5d', display: 'block', fontWeight: 600 }}>
-                        {lang === 'bn' ? 'আদায়কৃত চাঁদা' : 'Collected'}
+                        {incomeMonthFilter === 'all' ? (lang === 'bn' ? 'চক্রে মোট আদায়কৃত চাঁদা' : 'Cycle Collected') : (lang === 'bn' ? 'আদায়কৃত চাঁদা' : 'Collected')}
                       </span>
                       <strong style={{ fontSize: 20, color: '#25774a', fontWeight: 800, display: 'block', marginTop: 2 }}>
-                        {fmt(monthConfirmedChada)}
+                        {fmt(incomeMonthFilter === 'all' ? annualChadaTotal : monthConfirmedChada)}
                       </strong>
                     </div>
                     <div style={{ borderLeft: '1px solid #eee5d9', paddingLeft: 12 }}>
                       <span style={{ fontSize: 11, color: '#7a6a5d', display: 'block', fontWeight: 600 }}>
-                        {lang === 'bn' ? 'পরিশোধ অগ্রগতি' : 'Progress'}
+                        {incomeMonthFilter === 'all' ? (lang === 'bn' ? '১২ মাসের মোট লক্ষ্যমাত্রা' : '12-Mo Target') : (lang === 'bn' ? 'পরিশোধ অগ্রগতি' : 'Progress')}
                       </span>
                       <strong style={{ fontSize: 17, color: '#8d1717', fontWeight: 800, display: 'block', marginTop: 2 }}>
-                        {toBnDigits(monthPaidMembersCount)} / {toBnDigits(approvedUsers.length)} জন
+                        {incomeMonthFilter === 'all'
+                          ? fmt(annualCycleTarget)
+                          : `${toBnDigits(monthPaidMembersCount)} / ${toBnDigits(approvedUsers.length)} জন`}
                       </strong>
                     </div>
                   </div>
 
                   {/* Visual Progress Bar */}
                   <div className="progress" style={{ marginTop: 12, height: 7 }}>
-                    <i style={{ width: `${Math.min(100, Math.round((monthPaidMembersCount / Math.max(1, approvedUsers.length)) * 100))}%` }} />
+                    <i
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          incomeMonthFilter === 'all'
+                            ? Math.round((annualChadaTotal / Math.max(1, annualCycleTarget)) * 100)
+                            : Math.round((monthPaidMembersCount / Math.max(1, approvedUsers.length)) * 100)
+                        )}%`
+                      }}
+                    />
                   </div>
                 </div>
 
@@ -3328,7 +3411,9 @@ END:VCALENDAR`;
                 <div className="section-title inner-title" style={{ marginTop: 10 }}>
                   <div>
                     <h2 style={{ fontSize: 15 }}>
-                      {lang === 'bn' ? `${getMonthLabel(incomeMonthFilter, true)} — সদস্যদের চাঁদা তালিকা` : `Members Register — ${getMonthLabel(incomeMonthFilter, true)}`}
+                      {incomeMonthFilter === 'all'
+                        ? (lang === 'bn' ? 'শারদীয় দুর্গাপূজা ২০২৭ চক্র — সদস্যদের চাঁদা তালিকা' : 'Durga Puja 2027 Cycle — Members Register')
+                        : (lang === 'bn' ? `${getMonthLabel(incomeMonthFilter, false)} — সদস্যদের চাঁদা তালিকা` : `Members Register — ${getMonthLabel(incomeMonthFilter, false)}`)}
                     </h2>
                     <p style={{ fontSize: 11, color: '#776', margin: '3px 0 0' }}>
                       {lang === 'bn' ? 'সকল সদস্য প্রতি মাসে চাঁদা প্রদান করবেন' : 'All members pay contribution monthly'}
@@ -3473,13 +3558,23 @@ END:VCALENDAR`;
                 </div>
 
                 {/* 12-Month Annual Chada Grand Total Strip */}
-                <div style={{ background: '#fffaf3', border: '1px dashed #d9c4af', borderRadius: 14, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 12, color: '#6e5a4c', fontWeight: 600 }}>
-                    {lang === 'bn' ? '১২ মাসের সর্বমোট আদায়কৃত চাঁদা:' : '12-Month Total Chada:'}
-                  </span>
-                  <strong style={{ fontSize: 16, color: '#25774a', fontWeight: 800 }}>
-                    {fmt(annualChadaTotal)}
-                  </strong>
+                <div style={{ background: '#fffaf3', border: '1px dashed #d9c4af', borderRadius: 14, padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                  <div>
+                    <span style={{ fontSize: 12, color: '#6e5a4c', fontWeight: 700, display: 'block' }}>
+                      {lang === 'bn' ? 'শারদীয় দুর্গোৎসব ২০২৭ চাঁদা চক্র (১ নভেম্বর ’২৬ – অক্টোবর ’২৭)' : 'Durga Puja 2027 Cycle (1 Nov ’26 – Oct ’27)'}
+                    </span>
+                    <small style={{ fontSize: 11, color: '#887465' }}>
+                      {lang === 'bn' ? `১২ মাসের মোট লক্ষ্যমাত্রা: ${fmt(annualCycleTarget)}` : `12-Month Target: ${fmt(annualCycleTarget)}`}
+                    </small>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ fontSize: 11, color: '#6e5a4c', display: 'block' }}>
+                      {lang === 'bn' ? 'এ পর্যন্ত আদায়কৃত:' : 'Total Collected:'}
+                    </span>
+                    <strong style={{ fontSize: 16, color: '#25774a', fontWeight: 800 }}>
+                      {fmt(annualChadaTotal)}
+                    </strong>
+                  </div>
                 </div>
               </>
             )}
@@ -3621,7 +3716,7 @@ END:VCALENDAR`;
 
         {/* ===================== TAB: CONTRIBUTIONS ===================== */}
         {tab === 'contributions' && (() => {
-          const currentTargetMonth = incomeMonthFilter === 'all' ? '2026-10' : incomeMonthFilter;
+          const currentTargetMonth = incomeMonthFilter === 'all' ? currentRealMonthId : incomeMonthFilter;
           const monthContributions = income.filter(x => x.type === 'contribution' && x.status === 'Confirmed' && (x.month === currentTargetMonth || (currentTargetMonth === '2026-10' && !x.month)));
           const monthCollected = monthContributions.reduce((s, x) => s + x.amount, 0);
           const monthPaidCount = approvedUsers.filter(m => income.some(x => x.type === 'contribution' && x.status === 'Confirmed' && (x.name === m.name || (x.senderPhone && x.senderPhone === m.phone)) && (x.month === currentTargetMonth || (currentTargetMonth === '2026-10' && !x.month)))).length;
