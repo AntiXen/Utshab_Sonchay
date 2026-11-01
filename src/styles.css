@@ -1371,6 +1371,44 @@
   to { opacity: 1; transform: scale(1); }
 }
 
+/* Mobile Tab Swipe Transitions */
+.tab-slide-container {
+  touch-action: pan-y;
+  overflow-x: hidden;
+  width: 100%;
+}
+
+@keyframes tabSlideFromRight {
+  from {
+    opacity: 0.88;
+    transform: translate3d(22px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes tabSlideFromLeft {
+  from {
+    opacity: 0.88;
+    transform: translate3d(-22px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.slide-from-right {
+  animation: tabSlideFromRight 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.slide-from-left {
+  animation: tabSlideFromLeft 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+
 
 
 

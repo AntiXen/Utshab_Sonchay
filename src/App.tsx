@@ -2164,6 +2164,89 @@ END:VCALENDAR`;
     notify(lang === 'bn' ? `${method} নম্বর (${cleanDigits}) কপি করা হয়েছে!` : `${method} number copied!`);
   };
 
+  // Mobile Tab Swipe Navigation (Home <-> Income <-> Expenses <-> Calendar <-> More)
+  const touchStartRef = useRef<{ x: number; y: number; time: number; isIgnored: boolean } | null>(null);
+  const [slideAnimClass, setSlideAnimClass] = useState<'slide-from-right' | 'slide-from-left' | ''>('');
+
+  const MAIN_TABS: Tab[] = useMemo(() => ['home', 'income', 'expenses', 'calendar', 'more'], []);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    // Disable swiping if modal or bottom sheet is open
+    if (document.querySelector('.modal-backdrop, .limit-modal-backdrop')) {
+      touchStartRef.current = null;
+      return;
+    }
+
+    const touch = e.touches[0];
+    const target = e.target as HTMLElement | null;
+
+    // Ignore interactive form elements, selects, and horizontal scroll lists
+    const isIgnored = !!target?.closest('input, textarea, select, .month-select-dropdown, .status-dropdown, .search-bar, .sub-filter-row, .no-swipe');
+
+    touchStartRef.current = {
+      x: touch.clientX,
+      y: touch.clientY,
+      time: Date.now(),
+      isIgnored
+    };
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!touchStartRef.current) return;
+    const { x: startX, y: startY, time: startTime, isIgnored } = touchStartRef.current;
+    touchStartRef.current = null;
+
+    if (isIgnored) return;
+    if (document.querySelector('.modal-backdrop, .limit-modal-backdrop')) return;
+
+    const touch = e.changedTouches[0];
+    const deltaX = touch.clientX - startX;
+    const deltaY = touch.clientY - startY;
+    const deltaTime = Date.now() - startTime;
+
+    // Deliberate horizontal swipe criteria:
+    // 1. Gesture completed within 750ms
+    // 2. Horizontal distance at least 45px
+    // 3. Horizontal movement at least 1.35x greater than vertical movement (prevents triggering during vertical scroll)
+    if (deltaTime > 750) return;
+    if (Math.abs(deltaX) < 45) return;
+    if (Math.abs(deltaX) < 1.35 * Math.abs(deltaY)) return;
+
+    const currentIndex = MAIN_TABS.indexOf(tab);
+
+    if (deltaX < 0) {
+      // Swiping Left (finger moves from right to left) -> Go to NEXT section
+      if (currentIndex !== -1 && currentIndex < MAIN_TABS.length - 1) {
+        const nextTab = MAIN_TABS[currentIndex + 1];
+        setSlideAnimClass('slide-from-right');
+        setTab(nextTab);
+        window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+        if (typeof window !== 'undefined' && 'vibrate' in navigator) {
+          try { navigator.vibrate(14); } catch (_) {}
+        }
+      }
+    } else {
+      // Swiping Right (finger moves from left to right) -> Go to PREVIOUS section
+      if (currentIndex > 0) {
+        const prevTab = MAIN_TABS[currentIndex - 1];
+        setSlideAnimClass('slide-from-left');
+        setTab(prevTab);
+        window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+        if (typeof window !== 'undefined' && 'vibrate' in navigator) {
+          try { navigator.vibrate(14); } catch (_) {}
+        }
+      } else if (currentIndex === -1) {
+        // In sub-tabs (e.g. notifications, members, committee, request, etc.) -> native swipe right goes Back to Home!
+        setSlideAnimClass('slide-from-left');
+        setTab('home');
+        window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+        if (typeof window !== 'undefined' && 'vibrate' in navigator) {
+          try { navigator.vibrate(14); } catch (_) {}
+        }
+      }
+    }
+  };
+
   // Bottom Navigation config
   const nav: [Tab, string, any][] = [
     ['home', t.home, Home],
@@ -2534,7 +2617,15 @@ END:VCALENDAR`;
     <div className="app-shell">
       {/* Top Header */}
       <header className="topbar">
-        <div className="brand" onClick={() => setTab('home')} role="button" tabIndex={0}>
+        <div
+          className="brand"
+          onClick={() => {
+            setSlideAnimClass('slide-from-left');
+            setTab('home');
+          }}
+          role="button"
+          tabIndex={0}
+        >
           <div className="brand-mark">
             <Flower2 size={21} />
           </div>
@@ -2547,7 +2638,10 @@ END:VCALENDAR`;
           <button
             className="icon-button"
             aria-label="Notifications"
-            onClick={() => setTab('notifications')}
+            onClick={() => {
+              setSlideAnimClass('slide-from-right');
+              setTab('notifications');
+            }}
           >
             <Bell size={21} />
             {unreadCount > 0 && <i>{unreadCount > 9 ? '9+' : unreadCount}</i>}
@@ -2555,7 +2649,10 @@ END:VCALENDAR`;
           <button
             className="avatar"
             title={`${currentUser.name} (${role})`}
-            onClick={() => setTab('more')}
+            onClick={() => {
+              setSlideAnimClass('slide-from-right');
+              setTab('more');
+            }}
             style={{ overflow: 'hidden', padding: 0 }}
           >
             {currentUser.photoUrl ? (
@@ -2567,12 +2664,24 @@ END:VCALENDAR`;
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="main-content">
+      {/* Main Content Area with Mobile Swipe Navigation */}
+      <main
+        className={`main-content tab-slide-container ${slideAnimClass}`}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onAnimationEnd={() => setSlideAnimClass('')}
+      >
         {tab !== 'home' && (
           <div className="page-heading" style={{ justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <button className="back-button" onClick={() => setTab('home')} aria-label="Back">
+              <button
+                className="back-button"
+                onClick={() => {
+                  setSlideAnimClass('slide-from-left');
+                  setTab('home');
+                }}
+                aria-label="Back"
+              >
                 <ArrowLeft size={20} />
               </button>
               <h1>{screenTitle()}</h1>
@@ -6123,7 +6232,15 @@ END:VCALENDAR`;
             <button
               key={key}
               className={tab === key ? 'active' : ''}
-              onClick={() => setTab(key)}
+              onClick={() => {
+                const curIdx = MAIN_TABS.indexOf(tab);
+                const newIdx = MAIN_TABS.indexOf(key);
+                if (curIdx !== -1 && newIdx !== -1 && curIdx !== newIdx) {
+                  setSlideAnimClass(newIdx > curIdx ? 'slide-from-right' : 'slide-from-left');
+                }
+                setTab(key);
+                window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+              }}
             >
               <Icon size={21} strokeWidth={tab === key ? 2.5 : 1.8} />
               <span>{label}</span>
