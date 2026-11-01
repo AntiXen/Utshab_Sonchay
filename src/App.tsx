@@ -73,6 +73,7 @@ import {
   updateUserPasswordInFirestore,
   updateUserCommitmentInFirestore,
   updateUserApprovalInFirestore,
+  deleteUserFromFirestore,
   updateUserDesignationInFirestore,
 } from './services/backendService';
 
@@ -433,7 +434,7 @@ export default function App() {
 
   // Manual Admin Verification & Committee State
   const [signupPendingInfo, setSignupPendingInfo] = useState<{ name: string; phone: string } | null>(null);
-  const [memberSectionTab, setMemberSectionTab] = useState<'approved' | 'pending'>('approved');
+  const [memberSectionTab, setMemberSectionTab] = useState<'approved' | 'pending' | 'rejected'>('approved');
   const [editingDesignationUser, setEditingDesignationUser] = useState<User | null>(null);
   const [selectedDesignation, setSelectedDesignation] = useState<string>('');
   const [customDesignationInput, setCustomDesignationInput] = useState<string>('');
@@ -574,8 +575,40 @@ export default function App() {
   const isChadaWindowActive = currentDayOfMonth >= 1 && currentDayOfMonth <= 10;
   const daysLeftInChadaWindow = 10 - currentDayOfMonth; // 0 = today is 10th
   const isChadaOverdue = currentDayOfMonth > 10;
-  const unpaidMembersCount = useMemo(() => users.filter(u => !u.paid).length, [users]);
-  const pendingMembersCount = useMemo(() => users.filter(u => u.approvalStatus === 'Pending').length, [users]);
+  // Memoized Approved, Pending and Rejected User Segregation
+  const approvedUsers = useMemo(() => {
+    return users.filter(u => u.approvalStatus === 'Approved' || (!u.approvalStatus && u.role === 'Admin'));
+  }, [users]);
+
+  const pendingMembers = useMemo(() => {
+    return users.filter(u => u.approvalStatus === 'Pending');
+  }, [users]);
+
+  const rejectedMembers = useMemo(() => {
+    return users.filter(u => u.approvalStatus === 'Rejected');
+  }, [users]);
+
+  const pendingMembersCount = pendingMembers.length;
+
+  const targetChadaMonth = incomeMonthFilter === 'all' ? '2026-10' : incomeMonthFilter;
+
+  const monthPaidMembersCount = useMemo(() => {
+    return approvedUsers.filter(m =>
+      income.some(x => x.type === 'contribution' && x.status === 'Confirmed' && (x.name === m.name || (x.senderPhone && x.senderPhone === m.phone)) && (targetChadaMonth === 'all' ? true : (x.month === targetChadaMonth || (targetChadaMonth === '2026-10' && !x.month))))
+    ).length;
+  }, [income, approvedUsers, targetChadaMonth]);
+
+  const unpaidMembersCount = useMemo(() => {
+    return Math.max(0, approvedUsers.length - monthPaidMembersCount);
+  }, [approvedUsers.length, monthPaidMembersCount]);
+
+  const isCurrentUserPaidThisMonth = useMemo(() => {
+    if (!currentUser) return false;
+    return Boolean(
+      currentUser.paid ||
+      income.some(x => x.type === 'contribution' && x.status === 'Confirmed' && (x.name === currentUser.name || (x.senderPhone && x.senderPhone === currentUser.phone)) && (targetChadaMonth === 'all' ? true : (x.month === targetChadaMonth || (targetChadaMonth === '2026-10' && !x.month))))
+    );
+  }, [currentUser, income, targetChadaMonth]);
 
   // Mobile Push Notification Permission State
   const [pushPermission, setPushPermission] = useState<NotificationPermission>(() => {
@@ -728,9 +761,11 @@ export default function App() {
 
   // Admin Broadcast mobile notification to all unpaid members
   const sendChadaReminderToUnpaid = () => {
-    const unpaidMembers = users.filter(u => !u.paid);
+    const unpaidMembers = approvedUsers.filter(m =>
+      !income.some(x => x.type === 'contribution' && x.status === 'Confirmed' && (x.name === m.name || (x.senderPhone && x.senderPhone === m.phone)) && (targetChadaMonth === 'all' ? true : (x.month === targetChadaMonth || (targetChadaMonth === '2026-10' && !x.month))))
+    );
     if (unpaidMembers.length === 0) {
-      notify(lang === 'bn' ? 'সকল সদস্য ইতিমধ্যে চলতি মাসের চাঁদা পরিশোধ করেছেন!' : 'All members have already paid their chada!');
+      notify(lang === 'bn' ? 'সকল অনুমোদিত সদস্য ইতিমধ্যে চলতি মাসের চাঁদা পরিশোধ করেছেন!' : 'All approved members have already paid their chada!');
       return;
     }
 
@@ -842,19 +877,11 @@ export default function App() {
       }).length;
   }, [income, incomeMonthFilter]);
 
-  const targetChadaMonth = incomeMonthFilter === 'all' ? '2026-10' : incomeMonthFilter;
-
   const monthConfirmedChada = useMemo(() => {
     return income
       .filter(x => x.type === 'contribution' && x.status === 'Confirmed' && (incomeMonthFilter === 'all' ? true : (x.month === incomeMonthFilter || (incomeMonthFilter === '2026-10' && !x.month))))
       .reduce((s, x) => s + x.amount, 0);
   }, [income, incomeMonthFilter]);
-
-  const monthPaidMembersCount = useMemo(() => {
-    return users.filter(m =>
-      income.some(x => x.type === 'contribution' && x.status === 'Confirmed' && x.name === m.name && (targetChadaMonth === 'all' ? true : (x.month === targetChadaMonth || (targetChadaMonth === '2026-10' && !x.month))))
-    ).length;
-  }, [income, users, targetChadaMonth]);
 
   const annualChadaTotal = useMemo(() => {
     return income
@@ -1145,6 +1172,14 @@ export default function App() {
     setUsers(prev => prev.map(u => u.id === userId ? updated : u));
     updateUserApprovalInFirestore(userId, 'Rejected').catch(err => console.warn('Cloud reject error:', err));
     notify(lang === 'bn' ? `❌ ${target.name}-এর আবেদন বাতিল করা হয়েছে` : `❌ ${target.name} rejected`);
+  };
+
+  const deleteMember = async (userId: number) => {
+    const target = users.find(u => u.id === userId);
+    if (!target) return;
+    setUsers(prev => prev.filter(u => u.id !== userId));
+    await deleteUserFromFirestore(userId).catch(err => console.warn('Cloud delete error:', err));
+    notify(lang === 'bn' ? `🗑️ ${target.name}-কে স্থায়ীভাবে মুছে ফেলা হয়েছে` : `🗑️ ${target.name} permanently removed`);
   };
 
   // Designation Update Handler
@@ -1872,7 +1907,7 @@ END:VCALENDAR`;
                   </button>
                 </div>
 
-                {users.length === 0 ? (
+                {!users.some(u => u.role === 'Admin') ? (
                   <div className="info-note" style={{ marginTop: 14, background: '#fef3c7', borderColor: '#f59e0b', color: '#92400e' }}>
                     <ShieldCheck size={18} />{' '}
                     <span>
@@ -2139,16 +2174,16 @@ END:VCALENDAR`;
             </section>
 
             {/* MONTHLY CHADA 1st-10th DEADLINE BANNER */}
-            <section className={`chada-window-card ${currentUser?.paid ? 'paid' : isChadaWindowActive ? 'active-window' : 'overdue'}`}>
+            <section className={`chada-window-card ${isCurrentUserPaidThisMonth ? 'paid' : isChadaWindowActive ? 'active-window' : 'overdue'}`}>
               <div className="chada-window-top">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <CalendarDays size={16} color={currentUser?.paid ? '#15803d' : isChadaWindowActive ? '#b45309' : '#be123c'} />
-                  <strong style={{ fontSize: 13, color: currentUser?.paid ? '#15803d' : isChadaWindowActive ? '#92400e' : '#9f1239' }}>
+                  <CalendarDays size={16} color={isCurrentUserPaidThisMonth ? '#15803d' : isChadaWindowActive ? '#b45309' : '#be123c'} />
+                  <strong style={{ fontSize: 13, color: isCurrentUserPaidThisMonth ? '#15803d' : isChadaWindowActive ? '#92400e' : '#9f1239' }}>
                     {t.chadaDeadlineTitle}
                   </strong>
                 </div>
-                <span className={`chada-window-badge ${currentUser?.paid ? 'badge-window-paid' : isChadaWindowActive ? 'badge-window-active' : 'badge-window-overdue'}`}>
-                  {currentUser?.paid
+                <span className={`chada-window-badge ${isCurrentUserPaidThisMonth ? 'badge-window-paid' : isChadaWindowActive ? 'badge-window-active' : 'badge-window-overdue'}`}>
+                  {isCurrentUserPaidThisMonth
                     ? (lang === 'bn' ? 'পরিশোধিত ✓' : 'Paid ✓')
                     : isChadaWindowActive
                     ? (lang === 'bn' ? (currentDayOfMonth === 10 ? 'আজই শেষ দিন!' : `আর ${toBnDigits(daysLeftInChadaWindow)} দিন বাকি`) : (currentDayOfMonth === 10 ? 'Last Day!' : `${daysLeftInChadaWindow}d left`))
@@ -2156,24 +2191,24 @@ END:VCALENDAR`;
                 </span>
               </div>
 
-              <div className={`chada-window-content ${currentUser?.paid ? 'paid' : isChadaWindowActive ? 'active-window' : 'overdue'}`}>
+              <div className={`chada-window-content ${isCurrentUserPaidThisMonth ? 'paid' : isChadaWindowActive ? 'active-window' : 'overdue'}`}>
                 <h3>
-                  {currentUser?.paid
+                  {isCurrentUserPaidThisMonth
                     ? (lang === 'bn' ? 'আপনার চলতি মাসের চাঁদা সফলভাবে জমা হয়েছে' : 'Monthly contribution successfully paid')
                     : isChadaWindowActive
                     ? (lang === 'bn' ? 'চলতি মাসের চাঁদা প্রদানের সময় চলছে (১ - ১০ তারিখ)' : 'Monthly chada payment window is open (1st - 10th)')
                     : (lang === 'bn' ? '১০ তারিখের সময়সীমা অতিক্রান্ত হয়েছে!' : '10th deadline has passed!')}
                 </h3>
                 <p>
-                  {currentUser?.paid
-                    ? (lang === 'bn' ? 'ধন্যবাদ! আপনার ৳১,০০০ চাঁদা পূজা তহবিলে হিসাবভুক্ত হয়েছে।' : 'Thank you! Your ৳1,000 contribution has been credited.')
+                  {isCurrentUserPaidThisMonth
+                    ? (lang === 'bn' ? `ধন্যবাদ! আপনার ${fmt(currentUser?.monthlyCommitment || 1000)} চাঁদা পূজা তহবিলে হিসাবভুক্ত হয়েছে।` : `Thank you! Your ${fmt(currentUser?.monthlyCommitment || 1000)} contribution has been credited.`)
                     : isChadaWindowActive
-                    ? (lang === 'bn' ? `প্রতি মাসের ১ থেকে ১০ তারিখের মধ্যে চাঁদা প্রদান নিয়ম। ${currentDayOfMonth === 10 ? 'আজ ১০ তারিখ — চাঁদা দেওয়ার শেষ দিন!' : `১০ তারিখ শেষ সময়, আর মাত্র ${toBnDigits(daysLeftInChadaWindow)} দিন বাকি।`} অনুগ্রহ করে আপনার ৳১,০০০ চাঁদা বিকাশ বা নগদে জমা দিন।` : `Chada must be paid within 1st-10th. ${daysLeftInChadaWindow} days remaining.`)
-                    : (lang === 'bn' ? `চলতি মাসের ১০ তারিখের সময়সীমা শেষ হয়েছে (${toBnDigits(currentDayOfMonth - 10)} দিন অতিক্রান্ত)। আপনার ৳১,০০০ চাঁদা এখনও বাকি আছে। অনুগ্রহ করে দ্রুত পরিশোধ করুন।` : 'Monthly deadline of 10th has passed. Your ৳1,000 is overdue. Please pay now.')}
+                    ? (lang === 'bn' ? `প্রতি মাসের ১ থেকে ১০ তারিখের মধ্যে চাঁদা প্রদান নিয়ম। ${currentDayOfMonth === 10 ? 'আজ ১০ তারিখ — চাঁদা দেওয়ার শেষ দিন!' : `১০ তারিখ শেষ সময়, আর মাত্র ${toBnDigits(daysLeftInChadaWindow)} দিন বাকি।`} অনুগ্রহ করে আপনার ${fmt(currentUser?.monthlyCommitment || 1000)} চাঁদা বিকাশ বা নগদে জমা দিন।` : `Chada must be paid within 1st-10th. ${daysLeftInChadaWindow} days remaining.`)
+                    : (lang === 'bn' ? `চলতি মাসের ১০ তারিখের সময়সীমা শেষ হয়েছে (${toBnDigits(currentDayOfMonth - 10)} দিন অতিক্রান্ত)। আপনার ${fmt(currentUser?.monthlyCommitment || 1000)} চাঁদা এখনও বাকি আছে। অনুগ্রহ করে দ্রুত পরিশোধ করুন।` : `Monthly deadline of 10th has passed. Your ${fmt(currentUser?.monthlyCommitment || 1000)} is overdue. Please pay now.`)}
                 </p>
 
                 <div className="chada-window-action">
-                  {!currentUser?.paid ? (
+                  {!isCurrentUserPaidThisMonth ? (
                     <button
                       className="chada-pay-btn"
                       onClick={() => setTab('bkash-pay')}
@@ -2245,10 +2280,10 @@ END:VCALENDAR`;
             {/* Member's Personal Monthly Chada Status Card */}
             <section
               style={{
-                background: currentUser.paid
+                background: isCurrentUserPaidThisMonth
                   ? 'linear-gradient(135deg, #e3f5e6, #d2f0d7)'
                   : 'linear-gradient(135deg, #fff2f6, #ffe1ec)',
-                border: currentUser.paid ? '1px solid #c2e8c8' : '1px solid #f6bed3',
+                border: isCurrentUserPaidThisMonth ? '1px solid #c2e8c8' : '1px solid #f6bed3',
                 borderRadius: 20,
                 padding: '16px 18px',
                 marginBottom: 16,
@@ -2260,13 +2295,13 @@ END:VCALENDAR`;
             >
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: currentUser.paid ? '#206b40' : '#e2136e' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: isCurrentUserPaidThisMonth ? '#206b40' : '#e2136e' }}>
                     {lang === 'bn' ? 'আমার মাসিক চাঁদা (চলতি মাস)' : 'My Monthly Chada (Current Month)'}
                   </span>
                   <button
                     type="button"
                     onClick={() => {
-                      setTempLimitChoice(currentUser.monthlyCommitment || 1000);
+                      setTempLimitChoice(currentUser?.monthlyCommitment || 1000);
                       setCustomLimitInput('');
                       setShowChangeLimitModal(true);
                     }}
@@ -2288,23 +2323,23 @@ END:VCALENDAR`;
                     ✏️ {lang === 'bn' ? 'চাঁদা পরিবর্তন' : 'Change Limit'}
                   </button>
                 </div>
-                <h3 style={{ margin: '4px 0', fontSize: 17, color: currentUser.paid ? '#195533' : '#a00e4f' }}>
-                  {currentUser.paid ? (
+                <h3 style={{ margin: '4px 0', fontSize: 17, color: isCurrentUserPaidThisMonth ? '#195533' : '#a00e4f' }}>
+                  {isCurrentUserPaidThisMonth ? (
                     <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <CheckCircle2 size={18} color="#25774a" /> {lang === 'bn' ? `পরিশোধিত (${fmt(currentUser.monthlyCommitment || 1000)})` : `Paid (${fmt(currentUser.monthlyCommitment || 1000)})`}
+                      <CheckCircle2 size={18} color="#25774a" /> {lang === 'bn' ? `পরিশোধিত (${fmt(currentUser?.monthlyCommitment || 1000)})` : `Paid (${fmt(currentUser?.monthlyCommitment || 1000)})`}
                     </span>
                   ) : (
-                    <span>{lang === 'bn' ? `বাকি আছে (${fmt(currentUser.monthlyCommitment || 1000)})` : `Unpaid (${fmt(currentUser.monthlyCommitment || 1000)})`}</span>
+                    <span>{lang === 'bn' ? `বাকি আছে (${fmt(currentUser?.monthlyCommitment || 1000)})` : `Unpaid (${fmt(currentUser?.monthlyCommitment || 1000)})`}</span>
                   )}
                 </h3>
                 <small style={{ color: '#665' }}>
-                  {currentUser.paid
+                  {isCurrentUserPaidThisMonth
                     ? (lang === 'bn' ? 'ধন্যবাদ! আপনার চাঁদা তহবিলে জমা হয়েছে।' : 'Thank you! Contribution credited.')
                     : (lang === 'bn' ? 'বিকাশের মাধ্যমে সরাসরি চাঁদা পরিশোধ করুন' : 'Pay via bKash and verify TrxID')}
                 </small>
               </div>
 
-              {!currentUser.paid && (
+              {!isCurrentUserPaidThisMonth && (
                 <button
                   className="primary-small"
                   style={{ background: '#e2136e', padding: '10px 14px', borderRadius: 12, whiteSpace: 'nowrap' }}
@@ -2868,14 +2903,14 @@ END:VCALENDAR`;
                         {lang === 'bn' ? 'পরিশোধ অগ্রগতি' : 'Progress'}
                       </span>
                       <strong style={{ fontSize: 17, color: '#8d1717', fontWeight: 800, display: 'block', marginTop: 2 }}>
-                        {toBnDigits(monthPaidMembersCount)} / {toBnDigits(users.length)} জন
+                        {toBnDigits(monthPaidMembersCount)} / {toBnDigits(approvedUsers.length)} জন
                       </strong>
                     </div>
                   </div>
 
                   {/* Visual Progress Bar */}
                   <div className="progress" style={{ marginTop: 12, height: 7 }}>
-                    <i style={{ width: `${Math.min(100, Math.round((monthPaidMembersCount / Math.max(1, users.length)) * 100))}%` }} />
+                    <i style={{ width: `${Math.min(100, Math.round((monthPaidMembersCount / Math.max(1, approvedUsers.length)) * 100))}%` }} />
                   </div>
                 </div>
 
@@ -2908,7 +2943,7 @@ END:VCALENDAR`;
                     className={`sub-chip ${chadaMemberFilter === 'all' ? 'active' : ''}`}
                     onClick={() => setChadaMemberFilter('all')}
                   >
-                    {t.all} ({users.length})
+                    {t.all} ({approvedUsers.length})
                   </button>
                   <button
                     className={`sub-chip ${chadaMemberFilter === 'paid' ? 'active' : ''}`}
@@ -2919,18 +2954,18 @@ END:VCALENDAR`;
                   <button
                     className={`sub-chip ${chadaMemberFilter === 'unpaid' ? 'active' : ''}`}
                     onClick={() => setChadaMemberFilter('unpaid')}
-                    style={chadaMemberFilter !== 'unpaid' && (users.length - monthPaidMembersCount) > 0 ? { borderColor: '#e05a47', color: '#b32323', fontWeight: 700 } : {}}
+                    style={chadaMemberFilter !== 'unpaid' && (approvedUsers.length - monthPaidMembersCount) > 0 ? { borderColor: '#e05a47', color: '#b32323', fontWeight: 700 } : {}}
                   >
-                    🕒 {lang === 'bn' ? 'বকেয়া আছে' : 'Due'} ({users.length - monthPaidMembersCount})
+                    🕒 {lang === 'bn' ? 'বকেয়া আছে' : 'Due'} ({Math.max(0, approvedUsers.length - monthPaidMembersCount)})
                   </button>
                 </div>
 
                 {/* Member Chada Register List */}
                 <div className="panel list-panel">
-                  {users
+                  {approvedUsers
                     .filter(m => {
                       const isPaid = income.some(
-                        x => x.type === 'contribution' && x.status === 'Confirmed' && x.name === m.name && (targetChadaMonth === 'all' ? true : (x.month === targetChadaMonth || (targetChadaMonth === '2026-10' && !x.month)))
+                        x => x.type === 'contribution' && x.status === 'Confirmed' && (x.name === m.name || (x.senderPhone && x.senderPhone === m.phone)) && (targetChadaMonth === 'all' ? true : (x.month === targetChadaMonth || (targetChadaMonth === '2026-10' && !x.month)))
                       );
                       if (chadaMemberFilter === 'paid' && !isPaid) return false;
                       if (chadaMemberFilter === 'unpaid' && isPaid) return false;
@@ -2938,10 +2973,10 @@ END:VCALENDAR`;
                     })
                     .map(m => {
                       const confirmedEntry = income.find(
-                        x => x.type === 'contribution' && x.status === 'Confirmed' && x.name === m.name && (targetChadaMonth === 'all' ? true : (x.month === targetChadaMonth || (targetChadaMonth === '2026-10' && !x.month)))
+                        x => x.type === 'contribution' && x.status === 'Confirmed' && (x.name === m.name || (x.senderPhone && x.senderPhone === m.phone)) && (targetChadaMonth === 'all' ? true : (x.month === targetChadaMonth || (targetChadaMonth === '2026-10' && !x.month)))
                       );
                       const pendingEntry = income.find(
-                        x => x.type === 'contribution' && x.status === 'Pending' && x.name === m.name && (targetChadaMonth === 'all' ? true : (x.month === targetChadaMonth || (targetChadaMonth === '2026-10' && !x.month)))
+                        x => x.type === 'contribution' && x.status === 'Pending' && (x.name === m.name || (x.senderPhone && x.senderPhone === m.phone)) && (targetChadaMonth === 'all' ? true : (x.month === targetChadaMonth || (targetChadaMonth === '2026-10' && !x.month)))
                       );
                       const isPaid = !!confirmedEntry;
 
@@ -3190,7 +3225,7 @@ END:VCALENDAR`;
           const currentTargetMonth = incomeMonthFilter === 'all' ? '2026-10' : incomeMonthFilter;
           const monthContributions = income.filter(x => x.type === 'contribution' && x.status === 'Confirmed' && (x.month === currentTargetMonth || (currentTargetMonth === '2026-10' && !x.month)));
           const monthCollected = monthContributions.reduce((s, x) => s + x.amount, 0);
-          const monthPaidCount = users.filter(m => income.some(x => x.type === 'contribution' && x.status === 'Confirmed' && x.name === m.name && (x.month === currentTargetMonth || (currentTargetMonth === '2026-10' && !x.month)))).length;
+          const monthPaidCount = approvedUsers.filter(m => income.some(x => x.type === 'contribution' && x.status === 'Confirmed' && (x.name === m.name || (x.senderPhone && x.senderPhone === m.phone)) && (x.month === currentTargetMonth || (currentTargetMonth === '2026-10' && !x.month)))).length;
 
           return (
             <>
@@ -3203,8 +3238,8 @@ END:VCALENDAR`;
                   <span>{lang === 'bn' ? 'পরিশোধের অগ্রগতি' : 'Paid Ratio'}</span>
                   <strong>
                     {lang === 'bn'
-                      ? `${toBnDigits(monthPaidCount)}/${toBnDigits(users.length)} জন`
-                      : `${monthPaidCount}/${users.length}`}
+                      ? `${toBnDigits(monthPaidCount)}/${toBnDigits(approvedUsers.length)} জন`
+                      : `${monthPaidCount}/${approvedUsers.length}`}
                   </strong>
                 </div>
               </div>
@@ -3224,9 +3259,9 @@ END:VCALENDAR`;
               </div>
 
               <div className="panel list-panel">
-                {users.map(m => {
+                {approvedUsers.map(m => {
                   const isPaidMonth = income.some(
-                    x => x.type === 'contribution' && x.status === 'Confirmed' && x.name === m.name && (x.month === currentTargetMonth || (currentTargetMonth === '2026-10' && !x.month))
+                    x => x.type === 'contribution' && x.status === 'Confirmed' && (x.name === m.name || (x.senderPhone && x.senderPhone === m.phone)) && (x.month === currentTargetMonth || (currentTargetMonth === '2026-10' && !x.month))
                   );
 
                   return (
@@ -3753,10 +3788,14 @@ END:VCALENDAR`;
 
         {/* ===================== TAB: MEMBERS ===================== */}
         {tab === 'members' && (() => {
-          const approvedMembers = users.filter(u => u.approvalStatus !== 'Pending' && u.approvalStatus !== 'Rejected');
-          const pendingMembers = users.filter(u => u.approvalStatus === 'Pending');
+          const approvedMembers = approvedUsers;
 
-          const displayedList = memberSectionTab === 'pending' && role === 'Admin' ? pendingMembers : approvedMembers;
+          const displayedList =
+            memberSectionTab === 'pending' && role === 'Admin'
+              ? pendingMembers
+              : memberSectionTab === 'rejected' && role === 'Admin'
+              ? rejectedMembers
+              : approvedMembers;
 
           const filteredList = displayedList.filter(m => {
             if (memberQuery.trim()) {
@@ -3770,15 +3809,15 @@ END:VCALENDAR`;
             <>
               {/* Admin Member Tab Selector */}
               {role === 'Admin' && (
-                <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
                   <button
                     type="button"
                     className={`filter-chip ${memberSectionTab === 'approved' ? 'active' : ''}`}
                     onClick={() => setMemberSectionTab('approved')}
-                    style={{ flex: 1, padding: '9px 12px', fontSize: 12.5, fontWeight: 700 }}
+                    style={{ flex: 1, minWidth: 100, padding: '9px 10px', fontSize: 12.5, fontWeight: 700 }}
                   >
                     <Users size={15} style={{ verticalAlign: -2, marginRight: 5 }} />
-                    {lang === 'bn' ? `অনুমোদিত সদস্য (${toBnDigits(approvedMembers.length)})` : `Approved (${approvedMembers.length})`}
+                    {lang === 'bn' ? `অনুমোদিত (${toBnDigits(approvedMembers.length)})` : `Approved (${approvedMembers.length})`}
                   </button>
                   <button
                     type="button"
@@ -3786,7 +3825,8 @@ END:VCALENDAR`;
                     onClick={() => setMemberSectionTab('pending')}
                     style={{
                       flex: 1,
-                      padding: '9px 12px',
+                      minWidth: 100,
+                      padding: '9px 10px',
                       fontSize: 12.5,
                       fontWeight: 700,
                       background: memberSectionTab === 'pending' ? '#b45309' : (pendingMembers.length > 0 ? '#fef3c7' : undefined),
@@ -3795,8 +3835,28 @@ END:VCALENDAR`;
                     }}
                   >
                     <Clock3 size={15} style={{ verticalAlign: -2, marginRight: 5 }} />
-                    {lang === 'bn' ? `অনুমোদনের অপেক্ষায় (${toBnDigits(pendingMembers.length)})` : `Pending (${pendingMembers.length})`}
+                    {lang === 'bn' ? `পেন্ডিং (${toBnDigits(pendingMembers.length)})` : `Pending (${pendingMembers.length})`}
                   </button>
+                  {rejectedMembers.length > 0 && (
+                    <button
+                      type="button"
+                      className={`filter-chip ${memberSectionTab === 'rejected' ? 'active' : ''}`}
+                      onClick={() => setMemberSectionTab('rejected')}
+                      style={{
+                        flex: 1,
+                        minWidth: 100,
+                        padding: '9px 10px',
+                        fontSize: 12.5,
+                        fontWeight: 700,
+                        background: memberSectionTab === 'rejected' ? '#991b1b' : '#fee2e2',
+                        color: memberSectionTab === 'rejected' ? '#fff' : '#991b1b',
+                        borderColor: '#fca5a5'
+                      }}
+                    >
+                      <XCircle size={15} style={{ verticalAlign: -2, marginRight: 5 }} />
+                      {lang === 'bn' ? `বাতিলকৃত (${toBnDigits(rejectedMembers.length)})` : `Rejected (${rejectedMembers.length})`}
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -3805,7 +3865,13 @@ END:VCALENDAR`;
                 <input
                   value={memberQuery}
                   onChange={e => setMemberQuery(e.target.value)}
-                  placeholder={memberSectionTab === 'pending' && role === 'Admin' ? (lang === 'bn' ? 'আবেদনকারী খুঁজুন...' : 'Search applicants...') : t.search}
+                  placeholder={
+                    memberSectionTab === 'pending' && role === 'Admin'
+                      ? (lang === 'bn' ? 'আবেদনকারী খুঁজুন...' : 'Search applicants...')
+                      : memberSectionTab === 'rejected' && role === 'Admin'
+                      ? (lang === 'bn' ? 'বাতিলকৃত তালিকা খুঁজুন...' : 'Search rejected...')
+                      : t.search
+                  }
                 />
                 {role === 'Admin' && memberSectionTab === 'approved' && (
                   <button onClick={() => setShowAddMember(true)} aria-label="Add Member">
@@ -3878,6 +3944,65 @@ END:VCALENDAR`;
                     ))
                   )}
                 </div>
+              ) : memberSectionTab === 'rejected' && role === 'Admin' ? (
+                /* Rejected Applicants List (For Admin) */
+                <div className="panel list-panel">
+                  {filteredList.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '32px 16px', color: '#991b1b' }}>
+                      <CheckCircle2 size={36} color="#16a34a" style={{ margin: '0 auto 10px', display: 'block' }} />
+                      <strong style={{ fontSize: 15, display: 'block', marginBottom: 4 }}>
+                        {lang === 'bn' ? 'কোনো বাতিলকৃত আবেদন নেই' : 'No Rejected Requests'}
+                      </strong>
+                    </div>
+                  ) : (
+                    filteredList.map(m => (
+                      <div className="member-row" key={m.id} style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '14px', borderBottom: '1px solid #f2e9de', background: '#fffaf8' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <div className="person-avatar" style={{ background: '#fee2e2', color: '#991b1b', fontWeight: 800 }}>
+                            {m.name.slice(0, 1)}
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <strong style={{ fontSize: 15, color: '#991b1b' }}>{m.name}</strong>
+                              <span style={{ fontSize: 11, background: '#fee2e2', color: '#991b1b', padding: '1px 6px', borderRadius: 4, fontWeight: 700 }}>
+                                {lang === 'bn' ? 'বাতিলকৃত' : 'Rejected'}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: 12, color: '#78350f', marginTop: 2 }}>
+                              📞 {m.phone}
+                            </div>
+                            <div style={{ fontSize: 11, color: '#78716c', marginTop: 3 }}>
+                              {lang === 'bn' ? `চাঁদা: ৳${toBnDigits(m.monthlyCommitment || 1000)}/মাস` : `Commitment: ৳${m.monthlyCommitment || 1000}/mo`}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                          <button
+                            type="button"
+                            className="primary-button"
+                            style={{ flex: 1, padding: '8px 12px', fontSize: 12.5, background: '#15803d' }}
+                            onClick={() => approveMember(m.id)}
+                          >
+                            <CheckCircle2 size={16} /> {lang === 'bn' ? 'অনুমোদন করুন' : 'Re-Approve'}
+                          </button>
+                          <button
+                            type="button"
+                            className="secondary-button danger-btn"
+                            style={{ flex: 1, padding: '8px 12px', fontSize: 12.5 }}
+                            onClick={() => {
+                              if (window.confirm(lang === 'bn' ? `${m.name}-কে তালিকা থেকে স্থায়ীভাবে মুছে ফেলতে চান?` : `Permanently delete ${m.name}?`)) {
+                                deleteMember(m.id);
+                              }
+                            }}
+                          >
+                            <Trash2 size={16} /> {lang === 'bn' ? 'স্থায়ীভাবে মুছুন' : 'Delete'}
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               ) : (
                 /* Approved Members List */
                 <div className="panel list-panel">
@@ -3920,8 +4045,6 @@ END:VCALENDAR`;
 
         {/* ===================== TAB: PUJA COMMITTEE ===================== */}
         {tab === 'committee' && (() => {
-          const approvedUsers = users.filter(u => u.approvalStatus !== 'Pending' && u.approvalStatus !== 'Rejected');
-
           // Executive Leadership (শীর্ষ পরিষদ)
           const isTopTier = (u: User) => {
             const desig = u.designation || '';

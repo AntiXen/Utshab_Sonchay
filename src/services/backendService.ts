@@ -4,6 +4,7 @@ import {
   onSnapshot,
   setDoc,
   updateDoc,
+  deleteDoc,
   query,
   orderBy,
   serverTimestamp,
@@ -407,6 +408,12 @@ export const updateUserApprovalInFirestore = async (userId: number, approvalStat
     approvalStatus,
     updatedAt: serverTimestamp(),
   });
+};
+
+export const deleteUserFromFirestore = async (userId: number): Promise<void> => {
+  if (!isLiveBackend() || !db) return;
+  const userDocRef = doc(db, 'users', `user_${userId}`);
+  await deleteDoc(userDocRef);
 };
 
 export const updateUserDesignationInFirestore = async (userId: number, designation: string): Promise<void> => {
