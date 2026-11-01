@@ -12,7 +12,7 @@ import {
 } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 import { auth, db, firebaseConfigured } from '../firebase';
-import type { Income, Bill, User, IncomeType, PaymentMethod, IncomeStatus } from '../App';
+import type { Income, Bill, User, IncomeType, PaymentMethod, IncomeStatus, AppNotification } from '../App';
 
 export const isLiveBackend = (): boolean => {
   return Boolean(firebaseConfigured && db);
@@ -248,6 +248,7 @@ export const subscribeToUsers = (
           approvalStatus: (d.approvalStatus as 'Approved' | 'Pending' | 'Rejected') || 'Approved',
           designation: d.designation || (d.role === 'admin' ? 'প্রধান সভাপতি ও অ্যাডমিন' : 'কমিটি সদস্য'),
           joinedAt: d.joinedAt || '',
+          photoUrl: d.photoUrl || '',
         };
       });
       onData(liveUsers);
@@ -278,6 +279,7 @@ export const fetchAllUsersFromFirestore = async (): Promise<User[]> => {
         approvalStatus: (d.approvalStatus as 'Approved' | 'Pending' | 'Rejected') || 'Approved',
         designation: d.designation || (d.role === 'admin' ? 'সভাপতি ও প্রধান অ্যাডমিন' : 'সাধারণ সদস্য'),
         joinedAt: d.joinedAt || '',
+        photoUrl: d.photoUrl || '',
       };
     });
   } catch (err) {
@@ -309,6 +311,7 @@ export const fetchUserByPhoneFromFirestore = async (rawPhone: string): Promise<U
           approvalStatus: (d.approvalStatus as 'Approved' | 'Pending' | 'Rejected') || 'Approved',
           designation: d.designation || (d.role === 'admin' ? 'সভাপতি ও প্রধান অ্যাডমিন' : 'সাধারণ সদস্য'),
           joinedAt: d.joinedAt || '',
+          photoUrl: d.photoUrl || '',
         };
       }
     }
@@ -396,9 +399,19 @@ export const saveUserToFirestore = async (user: User): Promise<void> => {
     approvalStatus: user.approvalStatus || 'Approved',
     designation: user.designation || (user.role === 'Admin' ? 'প্রধান সভাপতি ও অ্যাডমিন' : 'কমিটি সদস্য'),
     joinedAt: user.joinedAt || new Date().toISOString().split('T')[0],
+    photoUrl: user.photoUrl || '',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   }, { merge: true });
+};
+
+export const updateUserProfilePhotoInFirestore = async (userId: number, photoUrl: string): Promise<void> => {
+  if (!isLiveBackend() || !db) return;
+  const userDocRef = doc(db, 'users', `user_${userId}`);
+  await updateDoc(userDocRef, {
+    photoUrl,
+    updatedAt: serverTimestamp(),
+  });
 };
 
 export const updateUserApprovalInFirestore = async (userId: number, approvalStatus: 'Approved' | 'Pending' | 'Rejected'): Promise<void> => {
@@ -460,4 +473,82 @@ export const logCloudAudit = async (
     details,
     timestamp: serverTimestamp(),
   });
+};
+
+// ==========================================
+// 4. REAL-TIME NOTIFICATIONS & ANNOUNCEMENTS
+// ==========================================
+export const subscribeToNotifications = (
+  onData: (notifs: AppNotification[]) => void,
+  onError?: (err: Error) => void
+) => {
+  if (!isLiveBackend() || !db) return () => {};
+
+  const q = query(collection(db, 'notifications'), orderBy('createdAt', 'desc'));
+  return onSnapshot(
+    q,
+    snapshot => {
+      const liveData: AppNotification[] = snapshot.docs.map(docSnap => {
+        const d = docSnap.data();
+        return {
+          id: typeof d.id === 'number' ? d.id : Number(docSnap.id.replace(/\D/g, '').slice(0, 13)) || Date.now(),
+          title: d.title || '',
+          body: d.body || '',
+          color: (d.color as 'orange' | 'red' | 'gold' | 'green') || 'green',
+          read: false,
+          time: d.time || (d.createdAt?.toDate ? d.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'আজ'),
+          entityType: d.entityType || 'announcement',
+          entityId: d.entityId,
+        };
+      });
+      if (liveData.length > 0) {
+        onData(liveData);
+      }
+    },
+    err => {
+      console.warn('Firestore notifications subscription fallback to local state:', err);
+      if (onError) onError(err);
+    }
+  );
+};
+
+export const saveNotificationToFirestore = async (notif: AppNotification): Promise<void> => {
+  if (!isLiveBackend() || !db) return;
+  const docId = `notif_${notif.id}`;
+  const notifDocRef = doc(db, 'notifications', docId);
+  await setDoc(notifDocRef, {
+    id: notif.id,
+    festivalId: 'durga-2026',
+    title: notif.title,
+    body: notif.body,
+    color: notif.color,
+    time: notif.time,
+    entityType: notif.entityType || 'announcement',
+    entityId: notif.entityId || null,
+    createdAt: serverTimestamp(),
+  });
+};
+
+export const fetchNotificationsFromFirestore = async (): Promise<AppNotification[]> => {
+  if (!isLiveBackend() || !db) return [];
+  try {
+    const q = query(collection(db, 'notifications'), orderBy('createdAt', 'desc'));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(docSnap => {
+      const d = docSnap.data();
+      return {
+        id: typeof d.id === 'number' ? d.id : Number(docSnap.id.replace(/\D/g, '').slice(0, 13)) || Date.now(),
+        title: d.title || '',
+        body: d.body || '',
+        color: (d.color as 'orange' | 'red' | 'gold' | 'green') || 'green',
+        read: false,
+        time: d.time || 'আজ',
+        entityType: d.entityType || 'announcement',
+        entityId: d.entityId,
+      };
+    });
+  } catch (err) {
+    console.error('Error fetching notifications from Firestore:', err);
+    return [];
+  }
 };

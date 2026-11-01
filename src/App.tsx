@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import {
   Home,
   Wallet,
@@ -52,6 +52,7 @@ import {
   Medal,
   CheckCircle,
   XCircle,
+  Camera,
 } from 'lucide-react';
 import { translations } from './translations';
 import {
@@ -75,6 +76,10 @@ import {
   updateUserApprovalInFirestore,
   deleteUserFromFirestore,
   updateUserDesignationInFirestore,
+  updateUserProfilePhotoInFirestore,
+  saveNotificationToFirestore,
+  subscribeToNotifications,
+  fetchNotificationsFromFirestore,
 } from './services/backendService';
 
 export type Tab =
@@ -112,6 +117,7 @@ export interface User {
   approvalStatus?: ApprovalStatus;
   designation?: string;
   joinedAt?: string;
+  photoUrl?: string;
 }
 
 export const COMMITTEE_DESIGNATIONS = [
@@ -171,7 +177,7 @@ export interface AppNotification {
   color: 'orange' | 'red' | 'gold' | 'green';
   read: boolean;
   time: string;
-  entityType?: 'bill' | 'income' | 'general';
+  entityType?: 'bill' | 'income' | 'general' | 'announcement';
   entityId?: number;
 }
 
@@ -742,13 +748,60 @@ export default function App() {
     return getMemberMonthStatus(currentRealMonthId, currentUser) === 'paid';
   }, [currentUser, income, currentRealMonthId]);
 
-  // Mobile Push Notification Permission State
+  // Mobile Push Notification Permission State (Turned ON by default)
   const [pushPermission, setPushPermission] = useState<NotificationPermission>(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
       return Notification.permission;
     }
     return 'default';
   });
+
+  // Automatically request push notification permission on mount and user interaction
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+
+    if (Notification.permission === 'granted') {
+      setPushPermission('granted');
+      return;
+    }
+
+    const autoAskNotification = async () => {
+      try {
+        if ('Notification' in window && Notification.permission === 'default') {
+          const perm = await Notification.requestPermission();
+          setPushPermission(perm);
+          if (perm === 'granted') {
+            sendDeviceNotification(
+              lang === 'bn' ? '✅ উৎসব সঞ্চয় — নোটিফিকেশন চালু হয়েছে' : '✅ Utsab Sonchay — Notifications Active',
+              lang === 'bn'
+                ? 'চাঁদার রিমাইন্ডার ও জরুরি ঘোষণা সরাসরি আপনার মোবাইল স্ক্রিনে পৌঁছে যাবে।'
+                : 'Monthly reminders and announcements will appear directly on your screen.'
+            );
+          }
+        }
+      } catch (err) {
+        // Browser gesture requirement
+      }
+    };
+
+    // Attempt immediate default activation
+    autoAskNotification();
+
+    // Trigger on first click or touch if browser requires user gesture
+    const handleFirstGesture = () => {
+      autoAskNotification();
+      window.removeEventListener('click', handleFirstGesture);
+      window.removeEventListener('touchstart', handleFirstGesture);
+    };
+
+    window.addEventListener('click', handleFirstGesture, { once: true });
+    window.addEventListener('touchstart', handleFirstGesture, { once: true });
+
+    return () => {
+      window.removeEventListener('click', handleFirstGesture);
+      window.removeEventListener('touchstart', handleFirstGesture);
+    };
+  }, [lang]);
 
   // Request Mobile Notification Permission
   const requestPushPermission = async () => {
@@ -829,25 +882,26 @@ export default function App() {
     if (!currentUser.paid && pushPermission === 'granted') {
       const alreadySentToday = localStorage.getItem(reminderKey);
       if (!alreadySentToday) {
+        const userCommitment = currentUser.monthlyCommitment || 1000;
         if (isChadaWindowActive) {
           sendDeviceNotification(
             lang === 'bn' ? '📢 মাসিক চাঁদা রিমাইন্ডার (১ - ১০ তারিখ)' : '📢 Monthly Chada Reminder (1st - 10th)',
             lang === 'bn'
-              ? `প্রতি মাসের ১-১০ তারিখের মধ্যে চাঁদা প্রদান আবশ্যক। ${currentDayOfMonth === 10 ? 'আজ ১০ তারিখ — চাঁদা দেওয়ার শেষ দিন!' : `আর ${toBnDigits(daysLeftInChadaWindow)} দিন বাকি (১০ তারিখ শেষ সময়)।`} অনুগ্রহ করে আপনার ৳১,০০০ চাঁদা জমা দিন।`
-              : `Monthly chada must be paid within 1st-10th. ${currentDayOfMonth === 10 ? 'Today is the 10th — Last day!' : `${daysLeftInChadaWindow} days left.`} Please pay your contribution.`
+              ? `প্রতি মাসের ১-১০ তারিখের মধ্যে চাঁদা প্রদান আবশ্যক। ${currentDayOfMonth === 10 ? 'আজ ১০ তারিখ — চাঁদা দেওয়ার শেষ দিন!' : `আর ${toBnDigits(daysLeftInChadaWindow)} দিন বাকি (১০ তারিখ শেষ সময়)।`} অনুগ্রহ করে আপনার নির্ধারিত ৳${toBnDigits(userCommitment)} চাঁদা জমা দিন।`
+              : `Monthly chada must be paid within 1st-10th. ${currentDayOfMonth === 10 ? 'Today is the 10th — Last day!' : `${daysLeftInChadaWindow} days left.`} Please pay your ৳${userCommitment} contribution.`
           );
         } else if (isChadaOverdue) {
           sendDeviceNotification(
             lang === 'bn' ? '⚠️ বকেয়া চাঁদা রিমাইন্ডার' : '⚠️ Overdue Chada Reminder',
             lang === 'bn'
-              ? 'চলতি মাসের ১০ তারিখের সময়সীমা অতিক্রান্ত হয়েছে। আপনার ৳১,০০০ চাঁদা এখনও বকেয়া রয়েছে। বিলম্ব না করে দ্রুত পরিশোধ করুন।'
-              : 'The 10th deadline has passed. Your ৳1,000 monthly chada is still unpaid. Please pay as soon as possible.'
+              ? `চলতি মাসের ১০ তারিখের সময়সীমা অতিক্রান্ত হয়েছে। আপনার নির্ধারিত ৳${toBnDigits(userCommitment)} চাঁদা এখনও বকেয়া রয়েছে। বিলম্ব না করে দ্রুত পরিশোধ করুন।`
+              : `The 10th deadline has passed. Your ৳${userCommitment} monthly chada is still unpaid. Please pay as soon as possible.`
           );
         }
         localStorage.setItem(reminderKey, 'true');
       }
     }
-  }, [currentUser?.id, currentUser?.paid, currentDayOfMonth, isChadaWindowActive, isChadaOverdue, pushPermission]);
+  }, [currentUser?.id, currentUser?.paid, currentUser?.monthlyCommitment, currentDayOfMonth, isChadaWindowActive, isChadaOverdue, pushPermission]);
 
   // Auto calculate member's dues, current month, and prefill bKash payment details
   useEffect(() => {
@@ -943,6 +997,17 @@ export default function App() {
       fetchBillsFromFirestore().then(liveBills => {
         if (liveBills.length > 0) setBills(liveBills);
       }),
+      fetchNotificationsFromFirestore().then(liveNotifs => {
+        if (liveNotifs.length > 0) {
+          setNotifications(prev => {
+            const readIds = new Set(prev.filter(x => x.read).map(x => x.id));
+            return liveNotifs.map(n => ({
+              ...n,
+              read: readIds.has(n.id)
+            }));
+          });
+        }
+      }),
     ]).finally(() => {
       setIsInitialSyncDone(true);
     });
@@ -957,11 +1022,27 @@ export default function App() {
     const unsubUsers = subscribeToUsers(liveUsers => {
       setUsers(liveUsers);
     });
+    const unsubNotifs = subscribeToNotifications(liveNotifs => {
+      setNotifications(prev => {
+        const readIds = new Set(prev.filter(x => x.read).map(x => x.id));
+        const prevIds = new Set(prev.map(x => x.id));
+        const brandNew = liveNotifs.filter(n => !prevIds.has(n.id));
+        if (brandNew.length > 0 && prev.length > 0) {
+          const latest = brandNew[0];
+          sendDeviceNotification(latest.title, latest.body, 'cloud-notification');
+        }
+        return liveNotifs.map(n => ({
+          ...n,
+          read: readIds.has(n.id)
+        }));
+      });
+    });
 
     return () => {
       unsubIncome();
       unsubBills();
       unsubUsers();
+      unsubNotifs();
     };
   }, []);
 
@@ -981,25 +1062,27 @@ export default function App() {
 
     const body = isChadaWindowActive
       ? (lang === 'bn'
-          ? `প্রতি মাসের ১-১০ তারিখের মধ্যে চাঁদা জমা দেওয়া নিয়ম। ${currentDayOfMonth === 10 ? 'আজ ১০ তারিখ — শেষ দিন!' : `আর মাত্র ${toBnDigits(daysLeftInChadaWindow)} দিন বাকি।`} অনুগ্রহ করে আপনার ৳১,০০০ চাঁদা বিকাশ বা নগদে দিন।`
-          : `Monthly chada due within 1st-10th. ${currentDayOfMonth === 10 ? 'Today is the 10th — Last day!' : `${daysLeftInChadaWindow} days left.`} Please pay via bKash/Nagad.`)
+          ? `প্রতি মাসের ১-১০ তারিখের মধ্যে চাঁদা জমা দেওয়া নিয়ম। ${currentDayOfMonth === 10 ? 'আজ ১০ তারিখ — শেষ দিন!' : `আর মাত্র ${toBnDigits(daysLeftInChadaWindow)} দিন বাকি।`} অনুগ্রহ করে আপনার নির্ধারিত মাসিক চাঁদা বিকাশ বা নগদে দিন।`
+          : `Monthly chada due within 1st-10th. ${currentDayOfMonth === 10 ? 'Today is the 10th — Last day!' : `${daysLeftInChadaWindow} days left.`} Please pay your designated contribution via bKash/Nagad.`)
       : (lang === 'bn'
-          ? 'চলতি মাসের ১০ তারিখের সময়সীমা অতিক্রান্ত হয়েছে। আপনার ৳১,০০০ চাঁদা এখনও বাকি আছে। অবিলম্বে পরিশোধ করুন।'
-          : 'The 10th deadline has passed. Your ৳1,000 contribution is overdue. Please pay now.');
+          ? 'চলতি মাসের ১০ তারিখের সময়সীমা অতিক্রান্ত হয়েছে। আপনার নির্ধারিত মাসিক চাঁদা এখনও বাকি আছে। অবিলম্বে পরিশোধ করুন।'
+          : 'The 10th deadline has passed. Your monthly contribution is overdue. Please pay now.');
 
     // 1. Fire native mobile notification to device screen
     sendDeviceNotification(title, body, 'admin-broadcast');
 
-    // 2. Add to in-app notification center for all members
+    // 2. Add to in-app notification center for all members & save to Firestore
     const newNotif: AppNotification = {
       id: Date.now(),
       title,
       body,
       color: isChadaWindowActive ? 'orange' : 'red',
       read: false,
-      time: lang === 'bn' ? 'এইমাত্র' : 'Just now'
+      time: lang === 'bn' ? 'এইমাত্র' : 'Just now',
+      entityType: 'general'
     };
     setNotifications(prev => [newNotif, ...prev]);
+    saveNotificationToFirestore(newNotif).catch(err => console.warn('Cloud save reminder failed:', err));
 
     notify(
       lang === 'bn'
@@ -1877,27 +1960,134 @@ END:VCALENDAR`;
     notify(lang === 'bn' ? `${activePujaSchedule.titleBn}-এর ক্যালেন্ডার ডাউনলোড হয়েছে` : 'Calendar file downloaded');
   };
 
-  // Publish announcement
-  const publishAnnouncement = () => {
+  // Publish announcement & broadcast to all members
+  const publishAnnouncement = async () => {
     if (!announcementTitle.trim() || !announcementBody.trim()) {
       notify(lang === 'bn' ? 'শিরোনাম ও বিবরণ দিন' : 'Enter title and description');
       return;
     }
-    setNotifications(prev => [
-      {
-        id: Date.now(),
-        title: announcementTitle.trim(),
-        body: announcementBody.trim(),
-        color: announcementColor,
-        read: false,
-        time: lang === 'bn' ? 'এইমাত্র' : 'Just now'
-      },
-      ...prev
-    ]);
+    const cleanTitle = announcementTitle.trim();
+    const cleanBody = announcementBody.trim();
+    const newNotif: AppNotification = {
+      id: Date.now(),
+      title: cleanTitle,
+      body: cleanBody,
+      color: announcementColor,
+      read: false,
+      time: lang === 'bn' ? 'এইমাত্র' : 'Just now',
+      entityType: 'announcement',
+    };
+
+    // 1. Dispatch to Firestore collection so all members across all devices receive it instantly
+    await saveNotificationToFirestore(newNotif).catch(e => console.warn('Cloud announcement save error:', e));
+
+    // 2. Dispatch device screen push notification
+    sendDeviceNotification(`📢 ${cleanTitle}`, cleanBody, 'admin-announcement');
+
+    // 3. Update local state
+    setNotifications(prev => [newNotif, ...prev.filter(x => x.id !== newNotif.id)]);
+
     setShowAnnouncementModal(false);
     setAnnouncementTitle('');
     setAnnouncementBody('');
-    notify(lang === 'bn' ? 'ঘোষণা সফলভাবে প্রচারিত হয়েছে' : 'Announcement published');
+    notify(lang === 'bn' ? '📢 জরুরি ঘোষণা সকল সদস্যের কাছে সফলভাবে পাঠানো হয়েছে!' : '📢 Announcement broadcasted to all members!');
+  };
+
+  // Profile Photo Upload & Compression (Canvas 320x320 JPEG, 100% Free & Fast)
+  const profileFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+
+  const handleProfileImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentUser) return;
+
+    if (!file.type.startsWith('image/')) {
+      notify(lang === 'bn' ? 'অনুগ্রহ করে ছবি ফাইল নির্বাচন করুন' : 'Please select an image file');
+      return;
+    }
+
+    try {
+      setIsUploadingPhoto(true);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = async () => {
+          try {
+            const canvas = document.createElement('canvas');
+            const maxDim = 320;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+              if (width > maxDim) {
+                height = Math.round((height * maxDim) / width);
+                width = maxDim;
+              }
+            } else {
+              if (height > maxDim) {
+                width = Math.round((width * maxDim) / height);
+                height = maxDim;
+              }
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              setIsUploadingPhoto(false);
+              return;
+            }
+            ctx.drawImage(img, 0, 0, width, height);
+
+            const photoDataUrl = canvas.toDataURL('image/jpeg', 0.82);
+
+            // 1. Save to Firestore
+            await updateUserProfilePhotoInFirestore(currentUser.id, photoDataUrl).catch(err => {
+              console.warn('Failed to update photo in Firestore:', err);
+            });
+
+            // 2. Update local currentUser and users array
+            const updatedUser = { ...currentUser, photoUrl: photoDataUrl };
+            setCurrentUser(updatedUser);
+            setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, photoUrl: photoDataUrl } : u));
+            localStorage.setItem('puja_fund_current_user', JSON.stringify(updatedUser));
+
+            setIsUploadingPhoto(false);
+            notify(lang === 'bn' ? '📸 আপনার প্রোফাইল ছবি সফলভাবে আপডেট হয়েছে!' : '📸 Profile photo updated successfully!');
+          } catch (err) {
+            console.error('Canvas compress error:', err);
+            setIsUploadingPhoto(false);
+            notify(lang === 'bn' ? 'ছবি সংরক্ষণে সমস্যা হয়েছে' : 'Failed to save photo');
+          }
+        };
+        img.onerror = () => {
+          setIsUploadingPhoto(false);
+          notify(lang === 'bn' ? 'ছবি লোড করা যায়নি' : 'Could not load image');
+        };
+        img.src = event.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('Error uploading photo:', err);
+      setIsUploadingPhoto(false);
+      notify(lang === 'bn' ? 'ছবি আপলোড করতে সমস্যা হয়েছে' : 'Failed to upload photo');
+    } finally {
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  const handleRemoveProfilePhoto = async () => {
+    if (!currentUser) return;
+    try {
+      await updateUserProfilePhotoInFirestore(currentUser.id, '').catch(err => console.warn(err));
+      const updatedUser = { ...currentUser, photoUrl: '' };
+      setCurrentUser(updatedUser);
+      setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, photoUrl: '' } : u));
+      localStorage.setItem('puja_fund_current_user', JSON.stringify(updatedUser));
+      notify(lang === 'bn' ? 'প্রোফাইল ছবি সফলভাবে সরানো হয়েছে' : 'Profile photo removed');
+    } catch {
+      notify(lang === 'bn' ? 'ছবি মুছতে ব্যর্থ হয়েছে' : 'Failed to remove photo');
+    }
   };
 
   // Copy Payment Account Number
@@ -2301,8 +2491,13 @@ END:VCALENDAR`;
             className="avatar"
             title={`${currentUser.name} (${role})`}
             onClick={() => setTab('more')}
+            style={{ overflow: 'hidden', padding: 0 }}
           >
-            {currentUser.name.slice(0, 1)}
+            {currentUser.photoUrl ? (
+              <img src={currentUser.photoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              currentUser.name.slice(0, 1)
+            )}
           </button>
         </div>
       </header>
@@ -2585,13 +2780,20 @@ END:VCALENDAR`;
                     ? '১ থেকে ১০ তারিখের মধ্যে চাঁদা প্রদানের জন্য সকল বকেয়া সদস্যের মোবাইল স্ক্রিনে সরাসরি পুশ নোটিফিকেশন পাঠান।'
                     : 'Send immediate mobile screen push notifications reminding unpaid members about the 1st-10th chada deadline.'}
                 </p>
-                <div className="admin-reminder-actions">
+                <div className="admin-reminder-actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <button
                     className="primary-small"
                     style={{ background: '#ea580c', display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px' }}
                     onClick={sendChadaReminderToUnpaid}
                   >
                     <Send size={13} /> {t.sendReminderToAll}
+                  </button>
+                  <button
+                    className="primary-small"
+                    style={{ background: '#8d1717', display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px' }}
+                    onClick={() => setShowAnnouncementModal(true)}
+                  >
+                    <Megaphone size={14} /> {lang === 'bn' ? 'জরুরি ঘোষণা দিন' : 'New Announcement'}
                   </button>
                 </div>
               </section>
@@ -3571,8 +3773,12 @@ END:VCALENDAR`;
                           }}
                           style={{ cursor: pendingEntry || confirmedEntry ? 'pointer' : 'default' }}
                         >
-                          <div className={'person-avatar ' + (isPaid ? '' : pendingEntry ? 'gold-bg' : 'orange-bg')} style={isPaid ? {} : { color: '#a05a16' }}>
-                            {m.name.slice(0, 1)}
+                          <div className={'person-avatar ' + (isPaid ? '' : pendingEntry ? 'gold-bg' : 'orange-bg')} style={{ ...(isPaid ? {} : { color: '#a05a16' }), overflow: 'hidden' }}>
+                            {m.photoUrl ? (
+                              <img src={m.photoUrl} alt={m.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : (
+                              m.name.slice(0, 1)
+                            )}
                           </div>
                           <div className="activity-copy">
                             <strong>
@@ -3857,7 +4063,13 @@ END:VCALENDAR`;
 
                   return (
                     <div className="activity-row" key={m.id}>
-                      <div className="person-avatar">{m.name.slice(0, 1)}</div>
+                      <div className="person-avatar" style={{ overflow: 'hidden' }}>
+                        {m.photoUrl ? (
+                          <img src={m.photoUrl} alt={m.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          m.name.slice(0, 1)
+                        )}
+                      </div>
                       <div className="activity-copy">
                         <strong>{m.name} {m.id === currentUser?.id && <span style={{ color: '#a61f1f' }}>(আমি)</span>}</strong>
                         <span>{m.phone} · <span className="role-badge">{m.role}</span> · <span style={{ fontSize: 10, color: '#7a5a3a' }}>মাসিক: {fmt(m.monthlyCommitment || 1000)}</span></span>
@@ -4488,8 +4700,12 @@ END:VCALENDAR`;
                     filteredList.map(m => (
                       <div className="member-row" key={m.id} style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '14px', borderBottom: '1px solid #f2e9de', background: '#fffdfa' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                          <div className="person-avatar" style={{ background: '#fef3c7', color: '#b45309', fontWeight: 800 }}>
-                            {m.name.slice(0, 1)}
+                          <div className="person-avatar" style={{ background: '#fef3c7', color: '#b45309', fontWeight: 800, overflow: 'hidden' }}>
+                            {m.photoUrl ? (
+                              <img src={m.photoUrl} alt={m.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : (
+                              m.name.slice(0, 1)
+                            )}
                           </div>
                           <div style={{ flex: 1 }}>
                             <strong style={{ fontSize: 15, color: '#431407' }}>{m.name}</strong>
@@ -4549,8 +4765,12 @@ END:VCALENDAR`;
                     filteredList.map(m => (
                       <div className="member-row" key={m.id} style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '14px', borderBottom: '1px solid #f2e9de', background: '#fffaf8' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                          <div className="person-avatar" style={{ background: '#fee2e2', color: '#991b1b', fontWeight: 800 }}>
-                            {m.name.slice(0, 1)}
+                          <div className="person-avatar" style={{ background: '#fee2e2', color: '#991b1b', fontWeight: 800, overflow: 'hidden' }}>
+                            {m.photoUrl ? (
+                              <img src={m.photoUrl} alt={m.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : (
+                              m.name.slice(0, 1)
+                            )}
                           </div>
                           <div style={{ flex: 1 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -4599,7 +4819,13 @@ END:VCALENDAR`;
                 <div className="panel list-panel">
                   {filteredList.map(m => (
                     <div className="member-row" key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px', borderBottom: '1px solid #f2e9de' }}>
-                      <div className="person-avatar">{m.name.slice(0, 1)}</div>
+                      <div className="person-avatar" style={{ overflow: 'hidden' }}>
+                        {m.photoUrl ? (
+                          <img src={m.photoUrl} alt={m.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          m.name.slice(0, 1)
+                        )}
+                      </div>
                       <div className="activity-copy">
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                           <strong>{m.name} {!m.active && <span style={{ color: '#b32323', fontSize: 10 }}>(নিষ্ক্রিয়)</span>}</strong>
@@ -4753,10 +4979,15 @@ END:VCALENDAR`;
                             background: isTop ? '#fef3c7' : '#f3f4f6',
                             color: isTop ? '#92400e' : '#374151',
                             fontWeight: 800,
-                            border: isTop ? '1.5px solid #fde68a' : 'none'
+                            border: isTop ? '1.5px solid #fde68a' : 'none',
+                            overflow: 'hidden'
                           }}
                         >
-                          {m.name.slice(0, 1)}
+                          {m.photoUrl ? (
+                            <img src={m.photoUrl} alt={m.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            m.name.slice(0, 1)
+                          )}
                         </div>
 
                         <div style={{ flex: 1 }}>
@@ -5317,7 +5548,7 @@ END:VCALENDAR`;
                   style={{ cursor: 'pointer', background: n.read ? '#fff' : '#fffaf4' }}
                 >
                   <div className={`activity-icon ${n.color}-bg`}>
-                    <Bell size={18} />
+                    {n.entityType === 'announcement' ? <Megaphone size={18} /> : <Bell size={18} />}
                   </div>
                   <div className="activity-copy">
                     <strong>{n.title}</strong>
@@ -5343,10 +5574,14 @@ END:VCALENDAR`;
         {tab === 'more' && (
           <>
             <div className="profile-card">
-              <div className="profile-avatar">
-                {currentUser.name.slice(0, 1)}
+              <div className="profile-avatar" style={{ overflow: 'hidden', position: 'relative' }}>
+                {currentUser.photoUrl ? (
+                  <img src={currentUser.photoUrl} alt={currentUser.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  currentUser.name.slice(0, 1)
+                )}
               </div>
-              <div>
+              <div style={{ flex: 1 }}>
                 <h2>{currentUser.name}</h2>
                 <p>{currentUser.phone}</p>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
@@ -5373,6 +5608,39 @@ END:VCALENDAR`;
                   >
                     চাঁদা: {fmt(currentUser.monthlyCommitment || 1000)}/মাস (পরিবর্তন)
                   </button>
+                </div>
+                {/* Profile Photo Upload / Edit Actions */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+                  <input
+                    type="file"
+                    ref={profileFileInputRef}
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={handleProfileImageUpload}
+                  />
+                  <button
+                    type="button"
+                    className="outline-button"
+                    style={{ fontSize: 11.5, padding: '5px 12px', borderRadius: 8, display: 'inline-flex', alignItems: 'center', gap: 5, background: '#fffaf0', borderColor: '#e2cfb8' }}
+                    onClick={() => profileFileInputRef.current?.click()}
+                    disabled={isUploadingPhoto}
+                  >
+                    <Camera size={14} color="#8d1717" />
+                    {isUploadingPhoto
+                      ? (lang === 'bn' ? 'ছবি প্রক্রিয়াকরণ হচ্ছে...' : 'Processing...')
+                      : currentUser.photoUrl
+                      ? (lang === 'bn' ? 'ছবি পরিবর্তন' : 'Change Photo')
+                      : (lang === 'bn' ? 'ছবি আপলোড করুন' : 'Upload Photo')}
+                  </button>
+                  {currentUser.photoUrl && (
+                    <button
+                      type="button"
+                      style={{ fontSize: 11.5, padding: '5px 10px', borderRadius: 8, background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', cursor: 'pointer' }}
+                      onClick={handleRemoveProfilePhoto}
+                    >
+                      {lang === 'bn' ? 'ছবি মুছুন' : 'Remove'}
+                    </button>
+                  )}
                 </div>
               </div>
               <button
@@ -5442,12 +5710,20 @@ END:VCALENDAR`;
                 onClick={() => setTab('report')}
               />
               {role === 'Admin' && (
-                <Setting
-                  icon={<CircleDollarSign />}
-                  label={t.reconciliation}
-                  detail={lang === 'bn' ? 'বিকাশ মার্চেন্ট অ্যাকাউন্ট স্টেটমেন্ট ও ট্রানজেকশন' : 'bKash merchant ledger'}
-                  onClick={() => setTab('reconciliation')}
-                />
+                <>
+                  <Setting
+                    icon={<Megaphone color="#b91c1c" />}
+                    label={lang === 'bn' ? 'জরুরি ঘোষণা পাঠান' : 'Broadcast Announcement'}
+                    detail={lang === 'bn' ? 'সকল সদস্যের কাছে গুরুত্বপূর্ণ নোটিফিকেশন পৌঁছে দিন' : 'Send push announcement to all members'}
+                    onClick={() => setShowAnnouncementModal(true)}
+                  />
+                  <Setting
+                    icon={<CircleDollarSign />}
+                    label={t.reconciliation}
+                    detail={lang === 'bn' ? 'বিকাশ মার্চেন্ট অ্যাকাউন্ট স্টেটমেন্ট ও ট্রানজেকশন' : 'bKash merchant ledger'}
+                    onClick={() => setTab('reconciliation')}
+                  />
+                </>
               )}
             </div>
 
