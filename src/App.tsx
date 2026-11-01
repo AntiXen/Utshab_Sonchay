@@ -522,6 +522,16 @@ export default function App() {
   const [tempLimitChoice, setTempLimitChoice] = useState<number>(currentUser?.monthlyCommitment || 1000);
   const [customLimitInput, setCustomLimitInput] = useState('');
 
+  // PWA Mobile App Installation State
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isAppInstalled, setIsAppInstalled] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
+    }
+    return false;
+  });
+  const [showInstallGuideModal, setShowInstallGuideModal] = useState(false);
+
   // Form states for Pronami
   const [amount, setAmount] = useState('500');
   const [giver, setGiver] = useState('');
@@ -873,6 +883,45 @@ export default function App() {
       }
     }
   }, [tab, currentUser?.id, currentUser?.monthlyCommitment, currentRealMonthId]);
+
+  // PWA App Installation Listeners & Prompt Handler
+  useEffect(() => {
+    const handleBeforeInstall = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+
+    const handleAppInstalled = () => {
+      setIsAppInstalled(true);
+      setDeferredPrompt(null);
+      notify(lang === 'bn' ? 'উৎসব সঞ্চয় অ্যাপটি আপনার ফোনে সফলভাবে ইনস্টল হয়েছে!' : 'App installed to your phone successfully!');
+    };
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, [lang]);
+
+  const triggerAppInstall = async () => {
+    if (deferredPrompt) {
+      try {
+        deferredPrompt.prompt();
+        const choice = await deferredPrompt.userChoice;
+        if (choice.outcome === 'accepted') {
+          setIsAppInstalled(true);
+        }
+        setDeferredPrompt(null);
+      } catch (err) {
+        console.warn('Install prompt error:', err);
+        setShowInstallGuideModal(true);
+      }
+    } else {
+      setShowInstallGuideModal(true);
+    }
+  };
 
   // Live Cloud Firestore Synchronizer (Active when Firebase credentials are configured)
   useEffect(() => {
@@ -2382,6 +2431,67 @@ END:VCALENDAR`;
                 )}
               </div>
             </section>
+
+            {/* Quick Install Banner (Shown if not in standalone app mode) */}
+            {!isAppInstalled && (
+              <section
+                style={{
+                  background: 'linear-gradient(135deg, #fff7ed, #ffedd5)',
+                  border: '1.5px solid #fed7aa',
+                  borderRadius: 18,
+                  padding: '12px 14px',
+                  marginBottom: 16,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 10
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 10,
+                      background: '#a61f1f',
+                      color: '#fff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}
+                  >
+                    <Smartphone size={20} />
+                  </div>
+                  <div>
+                    <strong style={{ fontSize: 13, color: '#9a3412', display: 'block' }}>
+                      {lang === 'bn' ? 'মোবাইলে অ্যাপ ইনস্টল করুন' : 'Install as Mobile App'}
+                    </strong>
+                    <span style={{ fontSize: 11, color: '#7c2d12' }}>
+                      {lang === 'bn' ? 'প্লে-স্টোর ছাড়াই ১ ক্লিকে আপনার ফোনের হোমস্ক্রিনে অ্যাপটি রাখুন' : 'Install to your phone home screen in 1 click'}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={triggerAppInstall}
+                  className="primary-small"
+                  style={{
+                    background: '#a61f1f',
+                    padding: '8px 12px',
+                    borderRadius: 10,
+                    whiteSpace: 'nowrap',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    fontSize: 11.5,
+                    boxShadow: '0 2px 6px rgba(166, 31, 31, 0.25)'
+                  }}
+                >
+                  <Download size={14} /> {lang === 'bn' ? 'ইনস্টল' : 'Install'}
+                </button>
+              </section>
+            )}
 
             {/* MONTHLY CHADA 1st-10th DEADLINE BANNER */}
             <section className={`chada-window-card ${isCurrentUserPaidThisMonth ? 'paid' : isChadaWindowActive ? 'active-window' : 'overdue'}`}>
@@ -5276,6 +5386,12 @@ END:VCALENDAR`;
 
             <div className="settings-list">
               <Setting
+                icon={<Smartphone color="#a61f1f" />}
+                label={lang === 'bn' ? '📲 মোবাইলে অ্যাপ ইনস্টল করুন' : '📲 Install Mobile App'}
+                detail={lang === 'bn' ? (isAppInstalled ? '✓ অ্যাপ ইতিমধ্যে আপনার ফোনে ইনস্টল করা আছে' : 'হোমস্ক্রিনে যুক্ত করে অ্যাপ হিসেবে ব্যবহার করুন') : (isAppInstalled ? '✓ Already Installed' : 'Add to home screen as app')}
+                onClick={triggerAppInstall}
+              />
+              <Setting
                 icon={<Crown />}
                 label={lang === 'bn' ? 'পূজা কমিটি' : 'Puja Committee'}
                 detail={lang === 'bn' ? 'পূজা কমিটির পদবী ও দায়িত্বপ্রাপ্ত পরিষদ' : 'Committee hierarchy & designations'}
@@ -6309,6 +6425,65 @@ END:VCALENDAR`;
                 {lang === 'bn' ? 'সংরক্ষণ করুন' : 'Save Changes'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================== MODAL: INSTALL MOBILE APP GUIDE ===================== */}
+      {showInstallGuideModal && (
+        <div className="limit-modal-backdrop" onClick={() => setShowInstallGuideModal(false)}>
+          <div className="limit-modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 440 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <h3 style={{ margin: 0, color: '#8d1717', fontSize: 17, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Smartphone size={20} /> {lang === 'bn' ? 'মোবাইলে অ্যাপ ইনস্টল করার নিয়ম' : 'How to Install as App'}
+              </h3>
+              <button
+                onClick={() => setShowInstallGuideModal(false)}
+                style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', padding: 4 }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <p style={{ fontSize: 12, color: '#665', margin: '0 0 14px', lineHeight: 1.5 }}>
+              {lang === 'bn'
+                ? 'উৎসব সঞ্চয় একটি আধুনিক প্রগ্রেসিভ ওয়েব অ্যাপ (PWA)। গুগল প্লে-স্টোর বা অ্যাপল স্টোরে না গিয়েও এটি যেকোনো অ্যান্ড্রয়েড ও আইফোনে সরাসরি আসল অ্যাপের মতো ইনস্টল করা যায়।'
+                : 'Utsab Sonchay is a Progressive Web App (PWA) that installs directly on Android & iOS without any store.'}
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 12.5, color: '#374151' }}>
+              <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, padding: '12px' }}>
+                <strong style={{ color: '#166534', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, fontSize: 13 }}>
+                  🤖 Android ফোন (Chrome / Samsung Internet):
+                </strong>
+                <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+                  <li>ব্রাউজারের ওপরের ডানপাশের <strong>তিনটি ডট (⋮)</strong> মেনুতে চাপুন।</li>
+                  <li>মেনু থেকে <strong>"Install app"</strong> অথবা <strong>"Add to Home screen"</strong> (হোম স্ক্রিনে যোগ করুন) চাপুন।</li>
+                  <li><strong>"Install"</strong> বাটনে ক্লিক করলেই অ্যাপটি হোমস্ক্রিনে চলে আসবে এবং আসল অ্যাপের মতো ফুলস্ক্রিনে চলবে।</li>
+                </ol>
+              </div>
+
+              <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 12, padding: '12px' }}>
+                <strong style={{ color: '#1e40af', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, fontSize: 13 }}>
+                  🍏 iPhone / iPad (Safari ব্রাউজার):
+                </strong>
+                <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+                  <li>Safari ব্রাউজারে অ্যাপের লিংকটি ওপেন করুন।</li>
+                  <li>নিচের <strong>শেয়ার আইকন (⎋ / Share)</strong> চাপুন।</li>
+                  <li>একটু নিচে স্ক্রোল করে <strong>"Add to Home Screen" (➕)</strong> চাপুন।</li>
+                  <li>উপরে ডানে <strong>"Add"</strong> বাটনে চাপলেই হোমস্ক্রিনে অ্যাপ আইকন তৈরি হয়ে যাবে।</li>
+                </ol>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="primary-button"
+              style={{ marginTop: 16, width: '100%', padding: 12 }}
+              onClick={() => setShowInstallGuideModal(false)}
+            >
+              {lang === 'bn' ? 'বুঝেছি, ধন্যবাদ' : 'Got it, Thanks'}
+            </button>
           </div>
         </div>
       )}

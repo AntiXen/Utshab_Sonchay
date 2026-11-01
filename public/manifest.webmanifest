@@ -1,11 +1,13 @@
 {
-  "name": "উৎসব সঞ্চয় (Utsab Sonchay)",
+  "name": "উৎসব সঞ্চয় — শারদীয় দুর্গোৎসব",
   "short_name": "উৎসব সঞ্চয়",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#fff8ec",
   "theme_color": "#a61f1f",
-  "description": "উৎসব সঞ্চয় — পূজা চাঁদা, প্রণামী ও খরচ তহবিল ব্যবস্থাপনা",
+  "description": "উৎসব সঞ্চয় — শারদীয় দুর্গোৎসব তহবিল ও চাঁদা ব্যবস্থাপনা",
   "icons": [
     {
       "src": "/icon.svg",
