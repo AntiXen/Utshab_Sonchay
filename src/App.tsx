@@ -46,7 +46,12 @@ import {
   AlertTriangle,
   Eye,
   EyeOff,
-  KeyRound
+  KeyRound,
+  Award,
+  Crown,
+  Medal,
+  CheckCircle,
+  XCircle,
 } from 'lucide-react';
 import { translations } from './translations';
 import {
@@ -63,8 +68,9 @@ import {
   saveUserToFirestore,
   updateUserPasswordInFirestore,
   updateUserCommitmentInFirestore,
+  updateUserApprovalInFirestore,
+  updateUserDesignationInFirestore,
 } from './services/backendService';
-import { sendPhoneOtpSms, clearRecaptcha, type ConfirmationResult } from './firebase';
 
 export type Tab =
   | 'home'
@@ -73,6 +79,7 @@ export type Tab =
   | 'calendar'
   | 'more'
   | 'members'
+  | 'committee'
   | 'pronami'
   | 'request'
   | 'notifications'
@@ -86,6 +93,7 @@ export type IncomeType = 'pronami' | 'contribution';
 export type PaymentMethod = 'Cash' | 'bKash' | 'Nagad' | 'Bank';
 export type IncomeStatus = 'Confirmed' | 'Pending' | 'Rejected';
 export type MemberRole = 'Admin' | 'Member';
+export type ApprovalStatus = 'Approved' | 'Pending' | 'Rejected';
 
 export interface User {
   id: number;
@@ -96,7 +104,28 @@ export interface User {
   paid: boolean;
   active: boolean;
   monthlyCommitment?: number;
+  approvalStatus?: ApprovalStatus;
+  designation?: string;
+  joinedAt?: string;
 }
+
+export const COMMITTEE_DESIGNATIONS = [
+  'সভাপতি',
+  'সহ-সভাপতি',
+  'সাধারণ সম্পাদক',
+  'যুগ্ম সাধারণ সম্পাদক',
+  'কোষাধ্যক্ষ',
+  'সাংগঠনিক সম্পাদক',
+  'পূজা উদযাপন সম্পাদক',
+  'সাংস্কৃতিক সম্পাদক',
+  'প্রচার ও প্রকাশনা সম্পাদক',
+  'আপ্যায়ন ও প্রসাদ সম্পাদক',
+  'শৃঙ্খলা ও নিরাপত্তা সম্পাদক',
+  'দপ্তর সম্পাদক',
+  'উপদেষ্টা',
+  'কার্যকরী সদস্য',
+  'সাধারণ সদস্য'
+] as const;
 
 export interface Income {
   id: number;
@@ -414,45 +443,21 @@ export default function App() {
   const [authMonthlyCommitment, setAuthMonthlyCommitment] = useState(1000);
   const [customCommitmentInput, setCustomCommitmentInput] = useState('');
 
-  // Firebase Real SMS Auth State
-  const [signupConfirmation, setSignupConfirmation] = useState<ConfirmationResult | null>(null);
-  const [forgotConfirmation, setForgotConfirmation] = useState<ConfirmationResult | null>(null);
-  const [isSmsSending, setIsSmsSending] = useState(false);
-  const [signupSmsSent, setSignupSmsSent] = useState(false);
-  const [signupSmsError, setSignupSmsError] = useState('');
-  const [forgotSmsSent, setForgotSmsSent] = useState(false);
-  const [forgotSmsError, setForgotSmsError] = useState('');
-
-  // Signup OTP verification state
-  const [signupStep, setSignupStep] = useState<'form' | 'otp'>('form');
-  const [generatedSignupOtp, setGeneratedSignupOtp] = useState('');
-  const [signupOtpInput, setSignupOtpInput] = useState('');
-  const [otpTimer, setOtpTimer] = useState(60);
-
-  // Forgot password state
+  // Manual Admin Verification & Committee State
+  const [signupPendingInfo, setSignupPendingInfo] = useState<{ name: string; phone: string } | null>(null);
+  const [memberSectionTab, setMemberSectionTab] = useState<'approved' | 'pending'>('approved');
+  const [editingDesignationUser, setEditingDesignationUser] = useState<User | null>(null);
+  const [selectedDesignation, setSelectedDesignation] = useState<string>('');
+  const [customDesignationInput, setCustomDesignationInput] = useState<string>('');
   const [forgotPhone, setForgotPhone] = useState('');
-  const [forgotStep, setForgotStep] = useState<'phone' | 'otp'>('phone');
-  const [generatedForgotOtp, setGeneratedForgotOtp] = useState('');
-  const [forgotOtpInput, setForgotOtpInput] = useState('');
   const [newResetPassword, setNewResetPassword] = useState('');
-  const [forgotTimer, setForgotTimer] = useState(60);
+  const [forgotSuccess, setForgotSuccess] = useState(false);
+  const [committeeFilter, setCommitteeFilter] = useState<'all' | 'top' | 'secretaries' | 'general'>('all');
 
   // Change monthly limit modal state
   const [showChangeLimitModal, setShowChangeLimitModal] = useState(false);
   const [tempLimitChoice, setTempLimitChoice] = useState<number>(currentUser?.monthlyCommitment || 1000);
   const [customLimitInput, setCustomLimitInput] = useState('');
-
-  // Countdown timer for OTP
-  useEffect(() => {
-    let interval: any;
-    if ((signupStep === 'otp' && otpTimer > 0) || (forgotStep === 'otp' && forgotTimer > 0)) {
-      interval = setInterval(() => {
-        setOtpTimer(prev => (prev > 0 ? prev - 1 : 0));
-        setForgotTimer(prev => (prev > 0 ? prev - 1 : 0));
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [signupStep, forgotStep, otpTimer, forgotTimer]);
 
   // Form states for Pronami
   const [amount, setAmount] = useState('500');
@@ -582,6 +587,7 @@ export default function App() {
   const daysLeftInChadaWindow = 10 - currentDayOfMonth; // 0 = today is 10th
   const isChadaOverdue = currentDayOfMonth > 10;
   const unpaidMembersCount = useMemo(() => users.filter(u => !u.paid).length, [users]);
+  const pendingMembersCount = useMemo(() => users.filter(u => u.approvalStatus === 'Pending').length, [users]);
 
   // Mobile Push Notification Permission State
   const [pushPermission, setPushPermission] = useState<NotificationPermission>(() => {
@@ -909,6 +915,25 @@ export default function App() {
       return;
     }
 
+    // Manual Admin Approval Verification
+    if (user.approvalStatus === 'Pending') {
+      notify(
+        lang === 'bn'
+          ? '⏳ আপনার অ্যাকাউন্টটি এখনও প্রধান অ্যাডমিনের অনুমোদনের অপেক্ষায় আছে। অ্যাডমিন অনুমোদন দিলে আপনি লগইন করতে পারবেন।'
+          : '⏳ Your account is pending Admin approval. You can log in once approved.'
+      );
+      return;
+    }
+
+    if (user.approvalStatus === 'Rejected') {
+      notify(
+        lang === 'bn'
+          ? '❌ আপনার নিবন্ধনের আবেদনটি অনুমোদিত হয়নি। অনুগ্রহ করে প্রধান অ্যাডমিনের সাথে যোগাযোগ করুন।'
+          : '❌ Your account registration was not approved. Please contact the Admin.'
+      );
+      return;
+    }
+
     setCurrentUser(user);
     setVerifyPhone(user.phone);
     setChadaAmountInput(String(user.monthlyCommitment || 1000));
@@ -918,8 +943,8 @@ export default function App() {
     notify(lang === 'bn' ? `স্বাগতম, ${user.name}!` : `Welcome, ${user.name}!`);
   };
 
-  // Step 1 of Signup: Send OTP (Dispatches real SMS via Firebase Phone Auth with fallback)
-  const handleInitiateSignup = async (e: React.FormEvent) => {
+  // Direct Signup Handler (Manual Admin Verification, 100% Free - 0 OTP / $0 Cost)
+  const handleSignup = (e: React.FormEvent) => {
     e.preventDefault();
     if (!authName.trim()) {
       notify(lang === 'bn' ? 'আপনার নাম লিখুন' : 'Enter your name');
@@ -939,254 +964,133 @@ export default function App() {
       return;
     }
 
-    // Generate fallback testing OTP
-    const fallbackCode = String(Math.floor(100000 + Math.random() * 900000));
-    setGeneratedSignupOtp(fallbackCode);
-    setSignupOtpInput('');
-    setIsSmsSending(true);
-
-    // Attempt real SMS dispatch via Firebase Phone Auth
-    const res = await sendPhoneOtpSms(authPhone);
-    setIsSmsSending(false);
-
-    if (res.success && res.confirmationResult) {
-      setSignupConfirmation(res.confirmationResult);
-      setSignupSmsSent(true);
-      setSignupSmsError('');
-      notify(lang === 'bn' ? `📱 ${res.formattedPhone} নম্বরে SMS পাঠানো হয়েছে!` : `SMS sent to ${res.formattedPhone}!`);
-    } else {
-      setSignupConfirmation(null);
-      setSignupSmsSent(false);
-      let errorMsg = '';
-      if (res.error?.includes('billing-not-enabled')) {
-        errorMsg = lang === 'bn'
-          ? 'গুগল ফায়ারবেস ফ্রি প্ল্যানে থাকায় (Blaze/Billing ছাড়া) সরাসরি সিমে এসএমএস পাঠায় না। আপনার অ্যাকাউন্ট চালুর জন্য ওটিপি কোডটি স্বয়ংক্রিয়ভাবে বসানো হয়েছে:'
-          : 'Firebase Spark requires Cloud Billing to send SMS. Testing OTP has been auto-filled below:';
-      } else if (res.error?.includes('operation-not-allowed')) {
-        errorMsg = lang === 'bn'
-          ? 'Firebase Console-এ Phone Sign-in সক্রিয় করা নেই। তাই ওটিপি কোড নিচে স্বয়ংক্রিয়ভাবে বসানো হয়েছে:'
-          : 'Phone Sign-in not enabled in Firebase Console. Using testing OTP below:';
-      } else if (res.error?.includes('unauthorized-domain')) {
-        errorMsg = lang === 'bn'
-          ? `এই ডোমেইনটি Firebase-এ অনুমোদিত নয়। ওটিপি কোড নিচে স্বয়ংক্রিয়ভাবে বসানো হয়েছে:`
-          : `Domain not authorized in Firebase Console. Testing OTP auto-filled:`;
-      } else {
-        errorMsg = lang === 'bn'
-          ? `সরাসরি SMS পাঠানো যায়নি (${res.error || 'অপারেটর ইস্যু'})। বিকল্প ওটিপি নিচে বসানো হয়েছে:`
-          : `SMS delivery failed (${res.error}). Fallback OTP auto-filled below:`;
-      }
-      setSignupSmsError(errorMsg);
-      // Auto-fill fallback code so user is never stuck
-      setSignupOtpInput(fallbackCode);
-      notify(lang === 'bn' ? 'ওটিপি কোড স্বয়ংক্রিয়ভাবে বসানো হয়েছে' : 'OTP auto-filled for testing');
-    }
-
-    setSignupStep('otp');
-    setOtpTimer(60);
-  };
-
-  // Step 2 of Signup: Verify OTP and Register Account
-  const handleVerifySignupOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleanInput = signupOtpInput.trim();
-
-    // Verify real Firebase SMS OTP if active
-    if (signupConfirmation) {
-      try {
-        await signupConfirmation.confirm(cleanInput);
-      } catch (err: any) {
-        if (cleanInput !== generatedSignupOtp && cleanInput !== '123456') {
-          notify(lang === 'bn' ? 'ভুল ওটিপি কোড! অনুগ্রহ করে আপনার মোবাইলে আসা ৬ ডিজিটের SMS কোড দিন।' : 'Incorrect OTP! Please check the 6-digit SMS code on your phone.');
-          return;
-        }
-      }
-    } else {
-      if (cleanInput !== generatedSignupOtp && cleanInput !== '123456') {
-        notify(lang === 'bn' ? 'ভুল ওটিপি কোড! অনুগ্রহ করে সঠিক ৬ ডিজিটের কোড দিন।' : 'Incorrect OTP code! Please enter the 6-digit code.');
-        return;
-      }
-    }
-
-    const cleanPhone = authPhone.trim().replace(/[^0-9]/g, '');
-    // First person signed up is the Admin; everyone else is a Member
-    const isFirstUser = users.length === 0 || !users.some(u => u.role === 'Admin');
-    const assignedRole: MemberRole = isFirstUser ? 'Admin' : 'Member';
     const finalCommitment = customCommitmentInput ? (Number(customCommitmentInput) || 1000) : (authMonthlyCommitment || 1000);
-
-    const newUser: User = {
-      id: Date.now(),
-      name: authName.trim(),
-      phone: authPhone.trim(),
-      role: assignedRole,
-      password: authPassword || '123',
-      paid: false,
-      active: true,
-      monthlyCommitment: finalCommitment
-    };
-
-    setUsers(prev => [...prev, newUser]);
-    saveUserToFirestore(newUser).catch(err => console.warn('Cloud save user failed:', err));
-    setCurrentUser(newUser);
-    setVerifyPhone(newUser.phone);
-    setChadaAmountInput(String(finalCommitment));
-    setTempLimitChoice(finalCommitment);
-    setAuthName('');
-    setAuthPhone('');
-    setAuthPassword('');
-    setSignupStep('form');
-    setSignupOtpInput('');
-    setCustomCommitmentInput('');
-    setSignupConfirmation(null);
-    clearRecaptcha();
+    const isFirstUser = users.length === 0 || !users.some(u => u.role === 'Admin');
 
     if (isFirstUser) {
-      notify(lang === 'bn' ? '🎉 অভিনন্দন! আপনি প্রথম ব্যক্তি হিসেবে প্রধান অ্যাডমিন (Admin) ক্ষমতা পেয়েছেন।' : '🎉 Congratulations! You are registered as the Main Admin.');
+      // First person signed up is automatically the Main Admin (Approved instantly)
+      const adminUser: User = {
+        id: Date.now(),
+        name: authName.trim(),
+        phone: authPhone.trim(),
+        role: 'Admin',
+        password: authPassword,
+        paid: false,
+        active: true,
+        monthlyCommitment: finalCommitment,
+        approvalStatus: 'Approved',
+        designation: 'সভাপতি ও প্রধান অ্যাডমিন',
+        joinedAt: new Date().toLocaleDateString('bn-BD')
+      };
+
+      setUsers(prev => [...prev, adminUser]);
+      saveUserToFirestore(adminUser).catch(err => console.warn('Cloud save admin user failed:', err));
+      setCurrentUser(adminUser);
+      setVerifyPhone(adminUser.phone);
+      setChadaAmountInput(String(finalCommitment));
+      setTempLimitChoice(finalCommitment);
+      setAuthName('');
+      setAuthPhone('');
+      setAuthPassword('');
+      setCustomCommitmentInput('');
+      notify(lang === 'bn' ? '🎉 অভিনন্দন! আপনি প্রথম নিবন্ধিত ব্যক্তি হিসেবে প্রধান অ্যাডমিন ক্ষমতা পেয়েছেন।' : '🎉 Congratulations! You are registered as Main Admin.');
     } else {
-      notify(lang === 'bn' ? 'সদস্য নিবন্ধন সফল হয়েছে!' : 'Registration successful!');
+      // Subsequent registrations go to Pending state for Admin Manual Verification
+      const pendingUser: User = {
+        id: Date.now(),
+        name: authName.trim(),
+        phone: authPhone.trim(),
+        role: 'Member',
+        password: authPassword,
+        paid: false,
+        active: true,
+        monthlyCommitment: finalCommitment,
+        approvalStatus: 'Pending',
+        designation: 'সাধারণ সদস্য',
+        joinedAt: new Date().toLocaleDateString('bn-BD')
+      };
+
+      setUsers(prev => [...prev, pendingUser]);
+      saveUserToFirestore(pendingUser).catch(err => console.warn('Cloud save pending user failed:', err));
+
+      // Notification for Admin
+      const adminNotif: AppNotification = {
+        id: Date.now(),
+        title: lang === 'bn' ? '👤 নতুন সদস্য অনুমোদনের আবেদন' : '👤 New Member Approval Request',
+        body: `${pendingUser.name} (${pendingUser.phone}) নতুন আবেদন করেছেন। চাঁদার লক্ষ্য: ৳${toBnDigits(finalCommitment)}/মাস। সদস্য তালিকা থেকে যাচাই করে অনুমোদন করুন।`,
+        color: 'gold',
+        read: false,
+        time: lang === 'bn' ? 'এইমাত্র' : 'Just now',
+        entityType: 'general'
+      };
+      setNotifications(prev => [adminNotif, ...prev]);
+
+      setSignupPendingInfo({ name: pendingUser.name, phone: pendingUser.phone });
+      setAuthName('');
+      setAuthPhone('');
+      setAuthPassword('');
+      setCustomCommitmentInput('');
+      notify(lang === 'bn' ? 'আবেদন জমা হয়েছে! প্রধান অ্যাডমিনের অনুমোদনের পর আপনি লগইন করতে পারবেন।' : 'Submitted! Awaiting admin approval.');
     }
   };
 
-  const handleResendSignupOtp = async () => {
-    const fallbackCode = String(Math.floor(100000 + Math.random() * 900000));
-    setGeneratedSignupOtp(fallbackCode);
-    setOtpTimer(60);
-    setIsSmsSending(true);
-
-    const res = await sendPhoneOtpSms(authPhone);
-    setIsSmsSending(false);
-
-    if (res.success && res.confirmationResult) {
-      setSignupConfirmation(res.confirmationResult);
-      setSignupSmsSent(true);
-      setSignupSmsError('');
-      notify(lang === 'bn' ? 'আপনার মোবাইলে নতুন SMS পাঠানো হয়েছে!' : 'New SMS sent to your phone!');
-    } else {
-      setSignupConfirmation(null);
-      setSignupSmsSent(false);
-      notify(lang === 'bn' ? 'নতুন ওটিপি কোড প্রস্তুত!' : 'New OTP code ready!');
-    }
-  };
-
-  // Forgot Password: Step 1 Send OTP
-  const handleInitiateForgot = async (e: React.FormEvent) => {
+  // Direct Cost-Free Password Reset (0 SMS, 100% Spark Free)
+  const handleResetPasswordDirect = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanPhone = forgotPhone.trim().replace(/[^0-9]/g, '');
     const user = users.find(u => u.phone.replace(/[^0-9]/g, '') === cleanPhone);
+
     if (!user) {
       notify(lang === 'bn' ? 'এই মোবাইল নম্বরে কোনো অ্যাকাউন্ট পাওয়া যায়নি' : 'No account found with this phone number');
       return;
     }
-
-    const fallbackCode = String(Math.floor(100000 + Math.random() * 900000));
-    setGeneratedForgotOtp(fallbackCode);
-    setForgotOtpInput('');
-    setNewResetPassword('');
-    setIsSmsSending(true);
-
-    const res = await sendPhoneOtpSms(forgotPhone);
-    setIsSmsSending(false);
-
-    if (res.success && res.confirmationResult) {
-      setForgotConfirmation(res.confirmationResult);
-      setForgotSmsSent(true);
-      setForgotSmsError('');
-      notify(lang === 'bn' ? `পাসওয়ার্ড রিসেট SMS পাঠানো হয়েছে!` : `Password reset SMS sent!`);
-    } else {
-      setForgotConfirmation(null);
-      setForgotSmsSent(false);
-      let errorMsg = '';
-      if (res.error?.includes('billing-not-enabled')) {
-        errorMsg = lang === 'bn'
-          ? 'গুগল ফায়ারবেস ফ্রি প্ল্যানে থাকায় (Blaze/Billing ছাড়া) সরাসরি সিমে এসএমএস পাঠায় না। পাসওয়ার্ড রিসেট ওটিপি কোড নিচে স্বয়ংক্রিয়ভাবে বসানো হয়েছে:'
-          : 'Firebase Spark requires Cloud Billing to send SMS. Reset OTP auto-filled below:';
-      } else if (res.error?.includes('operation-not-allowed')) {
-        errorMsg = lang === 'bn'
-          ? 'Firebase Console-এ Phone Sign-in সক্রিয় নেই। ওটিপি কোড নিচে স্বয়ংক্রিয়ভাবে বসানো হয়েছে:'
-          : 'Phone Sign-in not enabled in Firebase. Using testing OTP:';
-      } else if (res.error?.includes('unauthorized-domain')) {
-        errorMsg = lang === 'bn'
-          ? 'এই ডোমেইনটি Firebase Console-এ অনুমোদিত নয়। ওটিপি কোড নিচে স্বয়ংক্রিয়ভাবে বসানো হয়েছে:'
-          : 'Domain not authorized in Firebase Console. Testing OTP auto-filled:';
-      } else {
-        errorMsg = lang === 'bn'
-          ? `SMS ডিসপ্যাচ হয়নি (${res.error})। বিকল্প কোড নিচে বসানো হয়েছে:`
-          : `SMS delivery failed (${res.error}). Fallback code auto-filled:`;
-      }
-      setForgotSmsError(errorMsg);
-      setForgotOtpInput(fallbackCode);
-      notify(lang === 'bn' ? 'রিসেট ওটিপি কোড স্বয়ংক্রিয়ভাবে বসানো হয়েছে' : 'Reset OTP auto-filled for testing');
-    }
-
-    setForgotStep('otp');
-    setForgotTimer(60);
-  };
-
-  // Forgot Password: Step 2 Verify OTP and Set New Password
-  const handleVerifyForgotOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
     if (!newResetPassword || newResetPassword.length < 4) {
       notify(lang === 'bn' ? 'কমপক্ষে ৪ ডিজিটের নতুন পাসওয়ার্ড দিন' : 'Enter at least 4 digits for new password');
       return;
     }
 
-    const cleanInput = forgotOtpInput.trim();
-    if (forgotConfirmation) {
-      try {
-        await forgotConfirmation.confirm(cleanInput);
-      } catch (err: any) {
-        if (cleanInput !== generatedForgotOtp && cleanInput !== '123456') {
-          notify(lang === 'bn' ? 'ভুল ওটিপি কোড! অনুগ্রহ করে ফোনে আসা SMS চেক করুন।' : 'Incorrect OTP code!');
-          return;
-        }
-      }
-    } else {
-      if (cleanInput !== generatedForgotOtp && cleanInput !== '123456') {
-        notify(lang === 'bn' ? 'ভুল ওটিপি কোড! অনুগ্রহ করে সঠিক কোড দিন।' : 'Incorrect OTP code!');
-        return;
-      }
-    }
-
-    const cleanPhone = forgotPhone.trim().replace(/[^0-9]/g, '');
-    const user = users.find(u => u.phone.replace(/[^0-9]/g, '') === cleanPhone);
-    if (!user) return;
-
     const updatedUser = { ...user, password: newResetPassword };
     setUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
-    setCurrentUser(updatedUser);
-    setVerifyPhone(updatedUser.phone);
-    setChadaAmountInput(String(updatedUser.monthlyCommitment || 1000));
-    setTempLimitChoice(updatedUser.monthlyCommitment || 1000);
-
     updateUserPasswordInFirestore(user.id, newResetPassword).catch(err => console.warn('Cloud password update error:', err));
-    setForgotStep('phone');
     setForgotPhone('');
-    setForgotOtpInput('');
     setNewResetPassword('');
-    setForgotConfirmation(null);
-    clearRecaptcha();
-    setAuthMode('login');
-    notify(lang === 'bn' ? 'পাসওয়ার্ড সফলভাবে পরিবর্তিত হয়েছে এবং আপনি প্রবেশ করেছেন!' : 'Password reset successful! You are now logged in.');
+    setForgotSuccess(true);
+    notify(lang === 'bn' ? 'পাসওয়ার্ড সফলভাবে পরিবর্তিত হয়েছে! নতুন পাসওয়ার্ড দিয়ে লগইন করুন।' : 'Password updated successfully! Please log in.');
   };
 
-  const handleResendForgotOtp = async () => {
-    const fallbackCode = String(Math.floor(100000 + Math.random() * 900000));
-    setGeneratedForgotOtp(fallbackCode);
-    setForgotTimer(60);
-    setIsSmsSending(true);
+  // Admin Member Approval Handlers
+  const approveMember = (userId: number) => {
+    const target = users.find(u => u.id === userId);
+    if (!target) return;
+    const updated = { ...target, approvalStatus: 'Approved' as ApprovalStatus };
+    setUsers(prev => prev.map(u => u.id === userId ? updated : u));
+    updateUserApprovalInFirestore(userId, 'Approved').catch(err => console.warn('Cloud approval error:', err));
+    notify(lang === 'bn' ? `✅ ${target.name}-এর অ্যাকাউন্ট অনুমোদিত হয়েছে!` : `✅ ${target.name} approved!`);
+  };
 
-    const res = await sendPhoneOtpSms(forgotPhone);
-    setIsSmsSending(false);
+  const rejectMember = (userId: number) => {
+    const target = users.find(u => u.id === userId);
+    if (!target) return;
+    const updated = { ...target, approvalStatus: 'Rejected' as ApprovalStatus };
+    setUsers(prev => prev.map(u => u.id === userId ? updated : u));
+    updateUserApprovalInFirestore(userId, 'Rejected').catch(err => console.warn('Cloud reject error:', err));
+    notify(lang === 'bn' ? `❌ ${target.name}-এর আবেদন বাতিল করা হয়েছে` : `❌ ${target.name} rejected`);
+  };
 
-    if (res.success && res.confirmationResult) {
-      setForgotConfirmation(res.confirmationResult);
-      setForgotSmsSent(true);
-      setForgotSmsError('');
-      notify(lang === 'bn' ? 'নতুন SMS পাঠানো হয়েছে!' : 'New SMS sent!');
-    } else {
-      setForgotConfirmation(null);
-      setForgotSmsSent(false);
-      notify(lang === 'bn' ? 'নতুন ওটিপি কোড প্রস্তুত!' : 'New OTP code ready!');
+  // Designation Update Handler
+  const updateMemberDesignation = (userId: number, designation: string) => {
+    const target = users.find(u => u.id === userId);
+    if (!target) return;
+    const updated = { ...target, designation };
+    setUsers(prev => prev.map(u => u.id === userId ? updated : u));
+    if (currentUser?.id === userId) {
+      setCurrentUser(updated);
     }
+    updateUserDesignationInFirestore(userId, designation).catch(err => console.warn('Cloud designation update error:', err));
+    setEditingDesignationUser(null);
+    setSelectedDesignation('');
+    setCustomDesignationInput('');
+    notify(lang === 'bn' ? `🎖️ ${target.name}-এর পদবী '${designation}' নির্ধারণ করা হয়েছে` : `Designation updated to '${designation}'`);
   };
 
   // Update Member's Monthly Commitment
@@ -1669,6 +1573,7 @@ END:VCALENDAR`;
       expenses: t.expensesTitle,
       calendar: t.calendarTitle,
       more: t.moreTitle,
+      committee: lang === 'bn' ? 'পূজা কমিটি' : 'Puja Committee',
       members: t.members,
       pronami: t.addPronami,
       request: t.newRequest,
@@ -1703,8 +1608,8 @@ END:VCALENDAR`;
               className={`auth-tab ${authMode === 'login' ? 'active' : ''}`}
               onClick={() => {
                 setAuthMode('login');
-                setSignupStep('form');
-                setForgotStep('phone');
+                setSignupPendingInfo(null);
+                setForgotSuccess(false);
               }}
             >
               <LogIn size={15} style={{ display: 'inline', marginRight: 5, verticalAlign: -2 }} /> {t.login}
@@ -1713,8 +1618,8 @@ END:VCALENDAR`;
               className={`auth-tab ${authMode === 'signup' ? 'active' : ''}`}
               onClick={() => {
                 setAuthMode('signup');
-                setSignupStep('form');
-                setForgotStep('phone');
+                setSignupPendingInfo(null);
+                setForgotSuccess(false);
               }}
             >
               <UserPlus size={15} style={{ display: 'inline', marginRight: 5, verticalAlign: -2 }} /> {t.signup}
@@ -1722,7 +1627,39 @@ END:VCALENDAR`;
           </div>
 
           <div className="form-card">
-            {authMode === 'login' && (
+            {/* If a new user just registered and is pending approval */}
+            {signupPendingInfo ? (
+              <div style={{ textAlign: 'center', padding: '12px 6px' }}>
+                <div style={{ width: 60, height: 60, borderRadius: '50%', background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', color: '#b45309' }}>
+                  <Clock3 size={32} />
+                </div>
+                <h2 style={{ fontSize: 19, color: '#8d1717', margin: '0 0 8px' }}>
+                  {lang === 'bn' ? 'আবেদন জমা হয়েছে!' : 'Application Submitted!'}
+                </h2>
+                <div style={{ background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: 14, padding: '14px 16px', margin: '14px 0 20px', textAlign: 'left', lineHeight: 1.6, fontSize: 13, color: '#78350f' }}>
+                  <p style={{ margin: '0 0 8px' }}>
+                    {lang === 'bn'
+                      ? `ধন্যবাদ, ${signupPendingInfo.name}! আপনার সদস্য নিবন্ধনের আবেদনটি প্রধান অ্যাডমিনের অনুমোদনের জন্য জমা হয়েছে।`
+                      : `Thank you, ${signupPendingInfo.name}! Your member registration request has been submitted for Admin approval.`}
+                  </p>
+                  <p style={{ margin: 0 }}>
+                    {lang === 'bn'
+                      ? `প্রধান অ্যাডমিন আবেদন যাচাই ও অনুমোদন করার পর আপনি আপনার মোবাইল নম্বর (${signupPendingInfo.phone}) ও পাসওয়ার্ড দিয়ে সরাসরি লগইন করতে পারবেন।`
+                      : `Once the Admin verifies and approves your request, you can log in using your phone (${signupPendingInfo.phone}) and password.`}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={() => {
+                    setSignupPendingInfo(null);
+                    setAuthMode('login');
+                  }}
+                >
+                  <LogIn size={18} /> {lang === 'bn' ? 'লগইন পেজে যান' : 'Go to Login'}
+                </button>
+              </div>
+            ) : authMode === 'login' ? (
               <form onSubmit={handleLogin}>
                 <h2 style={{ fontSize: 18, margin: '0 0 6px', color: '#8d1717' }}>{t.welcomeBack}</h2>
                 <p style={{ fontSize: 12, color: '#776', margin: '0 0 16px' }}>{t.loginSubtitle}</p>
@@ -1763,8 +1700,8 @@ END:VCALENDAR`;
                   className="forgot-password-link"
                   onClick={() => {
                     setAuthMode('forgot');
-                    setForgotStep('phone');
                     setForgotPhone(authPhone);
+                    setForgotSuccess(false);
                   }}
                 >
                   {t.forgotPassword}
@@ -1779,16 +1716,14 @@ END:VCALENDAR`;
                   className="auth-switch"
                   onClick={() => {
                     setAuthMode('signup');
-                    setSignupStep('form');
+                    setSignupPendingInfo(null);
                   }}
                 >
                   {t.noAccount}
                 </button>
               </form>
-            )}
-
-            {authMode === 'signup' && signupStep === 'form' && (
-              <form onSubmit={handleInitiateSignup}>
+            ) : authMode === 'signup' ? (
+              <form onSubmit={handleSignup}>
                 <h2 style={{ fontSize: 18, margin: '0 0 6px', color: '#8d1717' }}>{t.signup}</h2>
                 <p style={{ fontSize: 12, color: '#776', margin: '0 0 16px' }}>{t.signupSubtitle}</p>
 
@@ -1876,13 +1811,13 @@ END:VCALENDAR`;
                   <div className="info-note" style={{ marginTop: 14 }}>
                     <ShieldCheck size={16} />{' '}
                     {lang === 'bn'
-                      ? 'নিবন্ধিত সকল সদস্য স্বেচ্ছাসেবী (Volunteer) হিসেবে দায়িত্ব পালন করতে পারবেন।'
-                      : 'All registered members automatically receive volunteer privileges.'}
+                      ? 'নিবন্ধন সম্পন্ন হলে আবেদনটি প্রধান অ্যাডমিনের অনুমোদনের জন্য যাবে।'
+                      : 'Submitted registrations require Main Admin verification.'}
                   </div>
                 )}
 
-                <button type="submit" className="primary-button" style={{ marginTop: 16 }} disabled={isSmsSending}>
-                  <KeyRound size={18} /> {isSmsSending ? (lang === 'bn' ? 'মোবাইলে SMS পাঠানো হচ্ছে...' : 'Sending SMS...') : t.sendOtp}
+                <button type="submit" className="primary-button" style={{ marginTop: 16 }}>
+                  <UserPlus size={18} /> {lang === 'bn' ? 'নিবন্ধন সম্পন্ন করুন' : 'Complete Registration'}
                 </button>
 
                 <button
@@ -1893,240 +1828,82 @@ END:VCALENDAR`;
                   {t.haveAccount}
                 </button>
               </form>
-            )}
-
-            {/* Signup Step 2: OTP Verification */}
-            {authMode === 'signup' && signupStep === 'otp' && (
-              <form onSubmit={handleVerifySignupOtp}>
-                <h2 style={{ fontSize: 18, margin: '0 0 6px', color: '#8d1717' }}>
-                  {lang === 'bn' ? 'মোবাইল নম্বর যাচাইকরণ (OTP)' : 'Phone OTP Verification'}
-                </h2>
-                <p style={{ fontSize: 12, color: '#776', margin: '0 0 14px' }}>
-                  {lang === 'bn' ? `${authPhone} নম্বরে ৬-সংখ্যার ওটিপি কোড পাঠানো হয়েছে` : `6-digit OTP code sent to ${authPhone}`}
-                </p>
-
-                {/* If Real SMS Was Successfully Dispatched to Phone */}
-                {signupSmsSent ? (
-                  <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 12, padding: '12px 14px', marginBottom: 14, fontSize: 12.5, color: '#065f46', display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <CheckCircle2 size={20} color="#059669" />
-                    <div>
-                      <strong style={{ display: 'block', fontSize: 13 }}>{lang === 'bn' ? 'সরাসরি মোবাইলে SMS পাঠানো হয়েছে!' : 'SMS sent to your phone!'}</strong>
-                      <span style={{ fontSize: 11.5 }}>{lang === 'bn' ? `${authPhone} নম্বরের মেসেজ ইনবক্স চেক করে ফোনে আসা ৬ ডিজিটের কোড দিন।` : `Check SMS inbox on ${authPhone} and enter the 6-digit code.`}</span>
+            ) : (
+              /* Forgot Password Screen - 100% Free / $0 SMS Cost */
+              <div>
+                {forgotSuccess ? (
+                  <div style={{ textAlign: 'center', padding: '12px 6px' }}>
+                    <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', color: '#16a34a' }}>
+                      <CheckCircle2 size={30} />
                     </div>
-                  </div>
-                ) : (
-                  <div style={{ marginBottom: 14 }}>
-                    {signupSmsError && (
-                      <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 10, padding: '9px 12px', fontSize: 11.5, color: '#92400e', marginBottom: 10, lineHeight: 1.45 }}>
-                        ⚠️ {signupSmsError}
-                      </div>
-                    )}
-                    <div className="otp-banner">
-                      <div>
-                        <span>📩 {lang === 'bn' ? 'টেস্টিং ওটিপি কোড:' : 'Testing OTP Code:'}</span>{' '}
-                        <strong>{generatedSignupOtp}</strong>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setSignupOtpInput(generatedSignupOtp)}
-                        style={{
-                          background: '#d97706',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: 8,
-                          padding: '4px 8px',
-                          fontSize: 11,
-                          fontWeight: 700,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        {lang === 'bn' ? 'কোড বসান' : 'Auto-fill'}
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                <label style={{ textAlign: 'center', display: 'block', fontWeight: 700 }}>
-                  {t.otpLabel}
-                </label>
-                <input
-                  className="otp-input-field"
-                  maxLength={6}
-                  value={signupOtpInput}
-                  onChange={e => setSignupOtpInput(e.target.value.replace(/[^0-9]/g, ''))}
-                  placeholder={lang === 'bn' ? '৬-ডিজিটের কোড' : '6-digit OTP'}
-                  inputMode="numeric"
-                  autoFocus
-                  required
-                />
-
-                <div style={{ textAlign: 'center', margin: '6px 0 16px', fontSize: 12, color: '#6d5b4e' }}>
-                  {otpTimer > 0 ? (
-                    <span>⏱️ {lang === 'bn' ? `পুনরায় কোড পাঠাতে অপেক্ষা করুন: ${toBnDigits(otpTimer)} সেকেন্ড` : `Resend code in: ${otpTimer}s`}</span>
-                  ) : (
+                    <h2 style={{ fontSize: 18, color: '#15803d', margin: '0 0 8px' }}>
+                      {lang === 'bn' ? 'পাসওয়ার্ড সফলভাবে পরিবর্তিত হয়েছে!' : 'Password Reset Successful!'}
+                    </h2>
+                    <p style={{ fontSize: 13, color: '#4b5563', margin: '0 0 18px', lineHeight: 1.5 }}>
+                      {lang === 'bn' ? 'আপনার নতুন পাসওয়ার্ড সংরক্ষিত হয়েছে। এখন লগইন করুন।' : 'Your new password has been saved. Please log in.'}
+                    </p>
                     <button
                       type="button"
-                      onClick={handleResendSignupOtp}
-                      style={{ background: 'transparent', border: 'none', color: '#a61f1f', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer' }}
+                      className="primary-button"
+                      onClick={() => {
+                        setForgotSuccess(false);
+                        setAuthMode('login');
+                      }}
                     >
-                      🔄 {t.resendOtp}
+                      <LogIn size={18} /> {t.login}
                     </button>
-                  )}
-                </div>
-
-                <button type="submit" className="primary-button">
-                  <CheckCircle2 size={18} /> {lang === 'bn' ? 'যাচাই করুন ও অ্যাকাউন্ট সম্পন্ন করুন' : 'Verify & Complete Signup'}
-                </button>
-
-                <button
-                  type="button"
-                  className="auth-switch"
-                  onClick={() => setSignupStep('form')}
-                >
-                  ← {lang === 'bn' ? 'নম্বর পরিবর্তন / তথ্য সংশোধন করুন' : 'Change Phone / Edit Info'}
-                </button>
-              </form>
-            )}
-
-            {/* Forgot Password Flow */}
-            {authMode === 'forgot' && forgotStep === 'phone' && (
-              <form onSubmit={handleInitiateForgot}>
-                <h2 style={{ fontSize: 18, margin: '0 0 6px', color: '#8d1717' }}>{t.resetPassword}</h2>
-                <p style={{ fontSize: 12, color: '#776', margin: '0 0 16px' }}>{t.resetPasswordSubtitle}</p>
-
-                <label>{t.phone}</label>
-                <input
-                  className="field"
-                  value={forgotPhone}
-                  onChange={e => setForgotPhone(e.target.value)}
-                  placeholder="01XXXXXXXXX"
-                  inputMode="tel"
-                  required
-                  autoFocus
-                />
-
-                <button type="submit" className="primary-button" style={{ marginTop: 12 }} disabled={isSmsSending}>
-                  <KeyRound size={18} /> {isSmsSending ? (lang === 'bn' ? 'SMS পাঠানো হচ্ছে...' : 'Sending SMS...') : t.sendOtp}
-                </button>
-
-                <button
-                  type="button"
-                  className="auth-switch"
-                  onClick={() => setAuthMode('login')}
-                >
-                  ← {lang === 'bn' ? 'লগইন পৃষ্ঠায় ফিরে যান' : 'Back to Login'}
-                </button>
-              </form>
-            )}
-
-            {authMode === 'forgot' && forgotStep === 'otp' && (
-              <form onSubmit={handleVerifyForgotOtp}>
-                <h2 style={{ fontSize: 18, margin: '0 0 6px', color: '#8d1717' }}>{t.resetPassword}</h2>
-                <p style={{ fontSize: 12, color: '#776', margin: '0 0 14px' }}>
-                  {lang === 'bn' ? `${forgotPhone} নম্বরে ভেরিফিকেশন কোড পাঠানো হয়েছে` : `Verification code sent to ${forgotPhone}`}
-                </p>
-
-                {forgotSmsSent ? (
-                  <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 12, padding: '12px 14px', marginBottom: 14, fontSize: 12.5, color: '#065f46', display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <CheckCircle2 size={20} color="#059669" />
-                    <div>
-                      <strong style={{ display: 'block', fontSize: 13 }}>{lang === 'bn' ? 'পাসওয়ার্ড রিসেট SMS পাঠানো হয়েছে!' : 'Password reset SMS sent!'}</strong>
-                      <span style={{ fontSize: 11.5 }}>{lang === 'bn' ? `${forgotPhone} নম্বরের মেসেজ ইনবক্স চেক করে ৬ ডিজিটের কোড দিন।` : `Check SMS inbox on ${forgotPhone} and enter code.`}</span>
-                    </div>
                   </div>
                 ) : (
-                  <div style={{ marginBottom: 14 }}>
-                    {forgotSmsError && (
-                      <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 10, padding: '9px 12px', fontSize: 11.5, color: '#92400e', marginBottom: 10, lineHeight: 1.45 }}>
-                        ⚠️ {forgotSmsError}
-                      </div>
-                    )}
-                    <div className="otp-banner">
-                      <div>
-                        <span>📩 {lang === 'bn' ? 'রিসেট ওটিপি কোড:' : 'Reset OTP Code:'}</span>{' '}
-                        <strong>{generatedForgotOtp}</strong>
-                      </div>
+                  <form onSubmit={handleResetPasswordDirect}>
+                    <h2 style={{ fontSize: 18, margin: '0 0 6px', color: '#8d1717' }}>{t.resetPassword}</h2>
+                    <p style={{ fontSize: 12, color: '#776', margin: '0 0 16px' }}>{t.resetPasswordSubtitle}</p>
+
+                    <label>{t.phone}</label>
+                    <input
+                      className="field"
+                      value={forgotPhone}
+                      onChange={e => setForgotPhone(e.target.value)}
+                      placeholder="01XXXXXXXXX"
+                      inputMode="tel"
+                      required
+                      autoFocus
+                    />
+
+                    <label>{t.newPassword}</label>
+                    <div className="password-input-wrap">
+                      <input
+                        type={showResetPassword ? 'text' : 'password'}
+                        className="field"
+                        value={newResetPassword}
+                        onChange={e => setNewResetPassword(e.target.value)}
+                        placeholder="নতুন ৪-৬ ডিজিটের পিন বা পাসওয়ার্ড"
+                        required
+                      />
                       <button
                         type="button"
-                        onClick={() => setForgotOtpInput(generatedForgotOtp)}
-                        style={{
-                          background: '#d97706',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: 8,
-                          padding: '4px 8px',
-                          fontSize: 11,
-                          fontWeight: 700,
-                          cursor: 'pointer'
-                        }}
+                        className="password-toggle-btn"
+                        onClick={() => setShowResetPassword(!showResetPassword)}
+                        tabIndex={-1}
+                        title={showResetPassword ? 'লুকান' : 'দেখুন'}
                       >
-                        {lang === 'bn' ? 'কোড বসান' : 'Auto-fill'}
+                        {showResetPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                       </button>
                     </div>
-                  </div>
-                )}
 
-                <label style={{ textAlign: 'center', display: 'block', fontWeight: 700 }}>
-                  {t.otpLabel}
-                </label>
-                <input
-                  className="otp-input-field"
-                  maxLength={6}
-                  value={forgotOtpInput}
-                  onChange={e => setForgotOtpInput(e.target.value.replace(/[^0-9]/g, ''))}
-                  placeholder={lang === 'bn' ? '৬-ডিজিটের কোড' : '6-digit OTP'}
-                  inputMode="numeric"
-                  autoFocus
-                  required
-                />
+                    <button type="submit" className="primary-button" style={{ marginTop: 14 }}>
+                      <CheckCircle2 size={18} /> {lang === 'bn' ? 'পাসওয়ার্ড পরিবর্তন করুন' : 'Change Password'}
+                    </button>
 
-                <label>{t.newPassword}</label>
-                <div className="password-input-wrap">
-                  <input
-                    type={showResetPassword ? 'text' : 'password'}
-                    className="field"
-                    value={newResetPassword}
-                    onChange={e => setNewResetPassword(e.target.value)}
-                    placeholder="নতুন ৪-৬ ডিজিটের পিন বা পাসওয়ার্ড"
-                    required
-                  />
-                  <button
-                    type="button"
-                    className="password-toggle-btn"
-                    onClick={() => setShowResetPassword(!showResetPassword)}
-                    tabIndex={-1}
-                    title={showResetPassword ? 'লুকান' : 'দেখুন'}
-                  >
-                    {showResetPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-
-                <div style={{ textAlign: 'center', margin: '6px 0 16px', fontSize: 12, color: '#6d5b4e' }}>
-                  {forgotTimer > 0 ? (
-                    <span>⏱️ {lang === 'bn' ? `পুনরায় কোড পাঠাতে অপেক্ষা করুন: ${toBnDigits(forgotTimer)} সেকেন্ড` : `Resend code in: ${forgotTimer}s`}</span>
-                  ) : (
                     <button
                       type="button"
-                      onClick={handleResendForgotOtp}
-                      style={{ background: 'transparent', border: 'none', color: '#a61f1f', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer' }}
+                      className="auth-switch"
+                      onClick={() => setAuthMode('login')}
                     >
-                      🔄 {t.resendOtp}
+                      ← {lang === 'bn' ? 'লগইন পৃষ্ঠায় ফিরে যান' : 'Back to Login'}
                     </button>
-                  )}
-                </div>
-
-                <button type="submit" className="primary-button">
-                  <CheckCircle2 size={18} /> {lang === 'bn' ? 'পাসওয়ার্ড পরিবর্তন ও লগইন করুন' : 'Reset Password & Login'}
-                </button>
-
-                <button
-                  type="button"
-                  className="auth-switch"
-                  onClick={() => setAuthMode('login')}
-                >
-                  ← {lang === 'bn' ? 'লগইন পৃষ্ঠায় ফিরে যান' : 'Back to Login'}
-                </button>
-              </form>
+                  </form>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -2490,6 +2267,42 @@ END:VCALENDAR`;
               </div>
             </section>
 
+            {/* Admin Alert: Pending Member Registrations */}
+            {role === 'Admin' && pendingMembersCount > 0 && (
+              <div
+                onClick={() => {
+                  setTab('members');
+                  setMemberSectionTab('pending');
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  background: '#fef3c7',
+                  border: '1.5px solid #f59e0b',
+                  borderRadius: 16,
+                  padding: '12px 14px',
+                  marginBottom: 16,
+                  cursor: 'pointer',
+                  color: '#78350f',
+                  boxShadow: '0 2px 8px rgba(245, 158, 11, 0.15)'
+                }}
+              >
+                <div style={{ width: 38, height: 38, borderRadius: 10, background: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 }}>
+                  <UserPlus size={20} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <strong style={{ fontSize: 13.5, display: 'block', color: '#92400e' }}>
+                    {lang === 'bn' ? `${toBnDigits(pendingMembersCount)} জন নতুন সদস্য অনুমোদনের অপেক্ষায়` : `${pendingMembersCount} new member approvals pending`}
+                  </strong>
+                  <span style={{ fontSize: 11, color: '#a16207' }}>
+                    {lang === 'bn' ? 'সদস্য তালিকা থেকে যাচাই করে অনুমোদন করুন' : 'Tap to review and approve'}
+                  </span>
+                </div>
+                <ChevronRight size={18} color="#b45309" />
+              </div>
+            )}
+
             {/* Quick Actions (All members have volunteer privileges by default) */}
             <section className="section-block">
               <div className="section-title">
@@ -2512,16 +2325,28 @@ END:VCALENDAR`;
                   onClick={() => { setTab('pronami'); setAddMenu(false); }}
                 />
                 <Quick
+                  icon={<Crown />}
+                  label={lang === 'bn' ? 'পূজা কমিটি' : 'Committee'}
+                  color="gold"
+                  onClick={() => setTab('committee')}
+                />
+                <Quick
+                  icon={<Users />}
+                  label={t.members}
+                  color="green"
+                  onClick={() => { setTab('members'); setMemberSectionTab('approved'); }}
+                />
+                <Quick
                   icon={<ReceiptText />}
                   label={t.request}
                   color="gold"
                   onClick={() => setTab('request')}
                 />
                 <Quick
-                  icon={<Users />}
-                  label={t.members}
-                  color="green"
-                  onClick={() => setTab('members')}
+                  icon={<FileSpreadsheet />}
+                  label={t.financialReport}
+                  color="orange"
+                  onClick={() => setTab('report')}
                 />
               </div>
             </section>
@@ -3853,58 +3678,366 @@ END:VCALENDAR`;
         )}
 
         {/* ===================== TAB: MEMBERS ===================== */}
-        {tab === 'members' && (
-          <>
-            <div className="search-bar">
-              <Search size={18} />
-              <input
-                value={memberQuery}
-                onChange={e => setMemberQuery(e.target.value)}
-                placeholder={t.search}
-              />
-              {role === 'Admin' && (
-                <button onClick={() => setShowAddMember(true)} aria-label="Add Member">
-                  <Plus size={19} />
-                </button>
-              )}
-            </div>
+        {tab === 'members' && (() => {
+          const approvedMembers = users.filter(u => u.approvalStatus !== 'Pending' && u.approvalStatus !== 'Rejected');
+          const pendingMembers = users.filter(u => u.approvalStatus === 'Pending');
 
-            <div className="panel list-panel">
-              {users
-                .filter(m => {
-                  if (memberQuery.trim()) {
-                    const q = memberQuery.toLowerCase();
-                    return m.name.toLowerCase().includes(q) || m.phone.includes(q);
-                  }
-                  return true;
-                })
-                .map(m => (
-                  <div className="member-row" key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px', borderBottom: '1px solid #f2e9de' }}>
-                    <div className="person-avatar">{m.name.slice(0, 1)}</div>
-                    <div className="activity-copy">
-                      <strong>{m.name} {!m.active && <span style={{ color: '#b32323', fontSize: 10 }}>(নিষ্ক্রিয়)</span>}</strong>
-                      <span>{m.phone}</span>
-                      <div className="role-chips">
-                        <span>{m.role}</span>
-                        <span style={{ marginLeft: 6, background: m.paid ? '#e2f5e5' : '#fff0d5', color: m.paid ? '#25774a' : '#8c5a16' }}>
-                          {m.paid ? (lang === 'bn' ? 'চাঁদা পরিশোধিত' : 'Paid') : (lang === 'bn' ? 'চাঁদা বাকি' : 'Unpaid')}
-                        </span>
-                      </div>
+          const displayedList = memberSectionTab === 'pending' && role === 'Admin' ? pendingMembers : approvedMembers;
+
+          const filteredList = displayedList.filter(m => {
+            if (memberQuery.trim()) {
+              const q = memberQuery.toLowerCase();
+              return m.name.toLowerCase().includes(q) || m.phone.includes(q) || (m.designation && m.designation.toLowerCase().includes(q));
+            }
+            return true;
+          });
+
+          return (
+            <>
+              {/* Admin Member Tab Selector */}
+              {role === 'Admin' && (
+                <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                  <button
+                    type="button"
+                    className={`filter-chip ${memberSectionTab === 'approved' ? 'active' : ''}`}
+                    onClick={() => setMemberSectionTab('approved')}
+                    style={{ flex: 1, padding: '9px 12px', fontSize: 12.5, fontWeight: 700 }}
+                  >
+                    <Users size={15} style={{ verticalAlign: -2, marginRight: 5 }} />
+                    {lang === 'bn' ? `অনুমোদিত সদস্য (${toBnDigits(approvedMembers.length)})` : `Approved (${approvedMembers.length})`}
+                  </button>
+                  <button
+                    type="button"
+                    className={`filter-chip ${memberSectionTab === 'pending' ? 'active' : ''}`}
+                    onClick={() => setMemberSectionTab('pending')}
+                    style={{
+                      flex: 1,
+                      padding: '9px 12px',
+                      fontSize: 12.5,
+                      fontWeight: 700,
+                      background: memberSectionTab === 'pending' ? '#b45309' : (pendingMembers.length > 0 ? '#fef3c7' : undefined),
+                      color: memberSectionTab === 'pending' ? '#fff' : (pendingMembers.length > 0 ? '#92400e' : undefined),
+                      borderColor: pendingMembers.length > 0 ? '#f59e0b' : undefined
+                    }}
+                  >
+                    <Clock3 size={15} style={{ verticalAlign: -2, marginRight: 5 }} />
+                    {lang === 'bn' ? `অনুমোদনের অপেক্ষায় (${toBnDigits(pendingMembers.length)})` : `Pending (${pendingMembers.length})`}
+                  </button>
+                </div>
+              )}
+
+              <div className="search-bar">
+                <Search size={18} />
+                <input
+                  value={memberQuery}
+                  onChange={e => setMemberQuery(e.target.value)}
+                  placeholder={memberSectionTab === 'pending' && role === 'Admin' ? (lang === 'bn' ? 'আবেদনকারী খুঁজুন...' : 'Search applicants...') : t.search}
+                />
+                {role === 'Admin' && memberSectionTab === 'approved' && (
+                  <button onClick={() => setShowAddMember(true)} aria-label="Add Member">
+                    <Plus size={19} />
+                  </button>
+                )}
+              </div>
+
+              {/* Pending Applicants List (For Admin) */}
+              {memberSectionTab === 'pending' && role === 'Admin' ? (
+                <div className="panel list-panel">
+                  {filteredList.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '32px 16px', color: '#78350f' }}>
+                      <CheckCircle2 size={36} color="#16a34a" style={{ margin: '0 auto 10px', display: 'block' }} />
+                      <strong style={{ fontSize: 15, display: 'block', marginBottom: 4 }}>
+                        {lang === 'bn' ? 'কোনো পেন্ডিং আবেদন নেই' : 'No Pending Requests'}
+                      </strong>
+                      <span style={{ fontSize: 12, color: '#8c7b70' }}>
+                        {lang === 'bn' ? 'সকল নতুন সদস্যের আবেদন ইতিমধ্যে যাচাই ও নিষ্পত্তি করা হয়েছে।' : 'All registrations have been reviewed.'}
+                      </span>
                     </div>
-                    {role === 'Admin' && (
-                      <button
-                        className="dots-button"
-                        onClick={() => setSelectedUser(m)}
-                        title="Options"
-                      >
-                        •••
-                      </button>
-                    )}
+                  ) : (
+                    filteredList.map(m => (
+                      <div className="member-row" key={m.id} style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '14px', borderBottom: '1px solid #f2e9de', background: '#fffdfa' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <div className="person-avatar" style={{ background: '#fef3c7', color: '#b45309', fontWeight: 800 }}>
+                            {m.name.slice(0, 1)}
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <strong style={{ fontSize: 15, color: '#431407' }}>{m.name}</strong>
+                            <div style={{ fontSize: 12, color: '#78350f', marginTop: 2 }}>
+                              📞 {m.phone}
+                            </div>
+                            <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: 11, background: '#fdf2f8', color: '#9d174d', padding: '2px 7px', borderRadius: 6, fontWeight: 700 }}>
+                                {lang === 'bn' ? `চাঁদার প্রতিশ্রুতি: ৳${toBnDigits(m.monthlyCommitment || 1000)}/মাস` : `Commitment: ৳${m.monthlyCommitment || 1000}/mo`}
+                              </span>
+                              {m.joinedAt && (
+                                <span style={{ fontSize: 11, color: '#78716c' }}>
+                                  📅 {m.joinedAt}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                          <button
+                            type="button"
+                            className="primary-button"
+                            style={{ flex: 1, padding: '8px 12px', fontSize: 12.5, background: '#15803d' }}
+                            onClick={() => approveMember(m.id)}
+                          >
+                            <CheckCircle2 size={16} /> {lang === 'bn' ? 'অনুমোদন করুন' : 'Approve'}
+                          </button>
+                          <button
+                            type="button"
+                            className="secondary-button danger-btn"
+                            style={{ flex: 1, padding: '8px 12px', fontSize: 12.5 }}
+                            onClick={() => {
+                              if (window.confirm(lang === 'bn' ? `${m.name}-এর আবেদন বাতিল করতে চান?` : `Reject ${m.name}?`)) {
+                                rejectMember(m.id);
+                              }
+                            }}
+                          >
+                            <XCircle size={16} /> {lang === 'bn' ? 'বাতিল' : 'Reject'}
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              ) : (
+                /* Approved Members List */
+                <div className="panel list-panel">
+                  {filteredList.map(m => (
+                    <div className="member-row" key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px', borderBottom: '1px solid #f2e9de' }}>
+                      <div className="person-avatar">{m.name.slice(0, 1)}</div>
+                      <div className="activity-copy">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <strong>{m.name} {!m.active && <span style={{ color: '#b32323', fontSize: 10 }}>(নিষ্ক্রিয়)</span>}</strong>
+                          {m.designation && (
+                            <span style={{ fontSize: 11, background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', borderRadius: 6, padding: '1px 6px', fontWeight: 700 }}>
+                              {m.designation}
+                            </span>
+                          )}
+                        </div>
+                        <span>{m.phone} · {fmt(m.monthlyCommitment || 1000)}/মাস</span>
+                        <div className="role-chips">
+                          <span>{m.role}</span>
+                          <span style={{ marginLeft: 6, background: m.paid ? '#e2f5e5' : '#fff0d5', color: m.paid ? '#25774a' : '#8c5a16' }}>
+                            {m.paid ? (lang === 'bn' ? 'চাঁদা পরিশোধিত' : 'Paid') : (lang === 'bn' ? 'চাঁদা বাকি' : 'Unpaid')}
+                          </span>
+                        </div>
+                      </div>
+                      {role === 'Admin' && (
+                        <button
+                          className="dots-button"
+                          onClick={() => setSelectedUser(m)}
+                          title="Options"
+                        >
+                          •••
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          );
+        })()}
+
+        {/* ===================== TAB: PUJA COMMITTEE ===================== */}
+        {tab === 'committee' && (() => {
+          const approvedUsers = users.filter(u => u.approvalStatus !== 'Pending' && u.approvalStatus !== 'Rejected');
+
+          // Executive Leadership (শীর্ষ পরিষদ)
+          const isTopTier = (u: User) => {
+            const desig = u.designation || '';
+            return u.role === 'Admin' || desig.includes('সভাপতি') || (desig.includes('সম্পাদক') && (desig.includes('সাধারণ') || desig.includes('যুগ্ম'))) || desig.includes('কোষাধ্যক্ষ');
+          };
+
+          // Secretaries / Coordinators (সম্পাদকীয় পরিষদ)
+          const isSecretaryTier = (u: User) => {
+            const desig = u.designation || '';
+            if (isTopTier(u)) return false;
+            return desig.includes('সম্পাদক') || desig.includes('আহ্বায়ক') || desig.includes('সমন্বয়ক');
+          };
+
+          // General Members & Advisors (সাধারণ পরিষদ ও উপদেষ্টা)
+          const isGeneralTier = (u: User) => {
+            return !isTopTier(u) && !isSecretaryTier(u);
+          };
+
+          const displayedCommittee = approvedUsers.filter(u => {
+            if (committeeFilter === 'top') return isTopTier(u);
+            if (committeeFilter === 'secretaries') return isSecretaryTier(u);
+            if (committeeFilter === 'general') return isGeneralTier(u);
+            return true;
+          });
+
+          return (
+            <>
+              {/* Header Banner */}
+              <div style={{ background: 'linear-gradient(135deg, #7c1212 0%, #b91c1c 100%)', borderRadius: 16, padding: '18px 16px', color: '#fff', marginBottom: 14, boxShadow: '0 4px 12px rgba(124, 18, 18, 0.15)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Crown size={20} color="#fef08a" />
                   </div>
-                ))}
-            </div>
-          </>
-        )}
+                  <div>
+                    <h2 style={{ fontSize: 17, margin: 0, fontWeight: 800, color: '#fef9c3' }}>
+                      {lang === 'bn' ? 'পূজা পরিচালনা ও কার্যকরী পরিষদ' : 'Puja Executive Committee'}
+                    </h2>
+                    <span style={{ fontSize: 11.5, opacity: 0.9 }}>
+                      {lang === 'bn' ? 'শারদীয় দুর্গাপূজা ২০২৬/২০২৭ দায়িত্বপ্রাপ্ত নেতৃবৃন্দ ও সদস্যবৃন্দ' : 'Leadership, Coordinators & Members'}
+                    </span>
+                  </div>
+                </div>
+
+                {role === 'Admin' && (
+                  <div style={{ marginTop: 10, background: 'rgba(0,0,0,0.25)', borderRadius: 10, padding: '8px 10px', fontSize: 11.5, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <ShieldCheck size={16} color="#fef08a" />
+                    <span>{lang === 'bn' ? 'অ্যাডমিন ক্ষমতা: যে-কোনো সদস্যের পদবী পরিবর্তন করতে "পদবী নির্ধারণ" চাপুন।' : 'Admin: Tap "Assign Title" to customize designations.'}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Committee Filter Pills */}
+              <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 6, marginBottom: 12 }}>
+                <button
+                  type="button"
+                  className={`filter-chip ${committeeFilter === 'all' ? 'active' : ''}`}
+                  onClick={() => setCommitteeFilter('all')}
+                  style={{ fontSize: 12, padding: '6px 12px', whiteSpace: 'nowrap' }}
+                >
+                  {lang === 'bn' ? `সকল সদস্য (${toBnDigits(approvedUsers.length)})` : `All (${approvedUsers.length})`}
+                </button>
+                <button
+                  type="button"
+                  className={`filter-chip ${committeeFilter === 'top' ? 'active' : ''}`}
+                  onClick={() => setCommitteeFilter('top')}
+                  style={{ fontSize: 12, padding: '6px 12px', whiteSpace: 'nowrap' }}
+                >
+                  👑 {lang === 'bn' ? 'শীর্ষ পরিষদ' : 'Executive'}
+                </button>
+                <button
+                  type="button"
+                  className={`filter-chip ${committeeFilter === 'secretaries' ? 'active' : ''}`}
+                  onClick={() => setCommitteeFilter('secretaries')}
+                  style={{ fontSize: 12, padding: '6px 12px', whiteSpace: 'nowrap' }}
+                >
+                  📜 {lang === 'bn' ? 'সম্পাদকীয় পরিষদ' : 'Secretaries'}
+                </button>
+                <button
+                  type="button"
+                  className={`filter-chip ${committeeFilter === 'general' ? 'active' : ''}`}
+                  onClick={() => setCommitteeFilter('general')}
+                  style={{ fontSize: 12, padding: '6px 12px', whiteSpace: 'nowrap' }}
+                >
+                  🤝 {lang === 'bn' ? 'উপদেষ্টা ও সদস্য' : 'Members'}
+                </button>
+              </div>
+
+              {/* Committee Members Cards */}
+              <div className="panel list-panel">
+                {displayedCommittee.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '24px 16px', color: '#78350f' }}>
+                    <p>{lang === 'bn' ? 'এই বিভাগে কোনো সদস্য পাওয়া যায়নি।' : 'No members found in this section.'}</p>
+                  </div>
+                ) : (
+                  displayedCommittee.map(m => {
+                    const isTop = isTopTier(m);
+                    const desigText = m.designation || (m.role === 'Admin' ? 'সভাপতি ও প্রধান অ্যাডমিন' : 'সাধারণ সদস্য');
+
+                    return (
+                      <div
+                        className="member-row"
+                        key={m.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 12,
+                          padding: '13px',
+                          borderBottom: '1px solid #f2e9de',
+                          background: isTop ? '#fffdf7' : '#ffffff'
+                        }}
+                      >
+                        <div
+                          className="person-avatar"
+                          style={{
+                            background: isTop ? '#fef3c7' : '#f3f4f6',
+                            color: isTop ? '#92400e' : '#374151',
+                            fontWeight: 800,
+                            border: isTop ? '1.5px solid #fde68a' : 'none'
+                          }}
+                        >
+                          {m.name.slice(0, 1)}
+                        </div>
+
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <strong style={{ fontSize: 14.5, color: '#1f2937' }}>{m.name}</strong>
+                            {m.role === 'Admin' && (
+                              <span style={{ fontSize: 10, background: '#fee2e2', color: '#991b1b', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>
+                                Admin
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Designation Badge */}
+                          <div style={{ marginTop: 4 }}>
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                background: isTop ? '#fef3c7' : '#f0fdf4',
+                                color: isTop ? '#92400e' : '#166534',
+                                border: `1px solid ${isTop ? '#fde68a' : '#bbf7d0'}`,
+                                borderRadius: 6,
+                                padding: '2px 8px',
+                                fontSize: 12,
+                                fontWeight: 700
+                              }}
+                            >
+                              {isTop ? <Crown size={12} color="#b45309" /> : <Medal size={12} color="#15803d" />}
+                              {desigText}
+                            </span>
+                          </div>
+
+                          <div style={{ fontSize: 11.5, color: '#6b7280', marginTop: 3 }}>
+                            📞 {m.phone} · মাসিক চাঁদা: ৳{toBnDigits(m.monthlyCommitment || 1000)}
+                          </div>
+                        </div>
+
+                        {/* Admin Action: Change Title */}
+                        {role === 'Admin' && (
+                          <button
+                            type="button"
+                            className="secondary-button"
+                            style={{
+                              padding: '6px 10px',
+                              fontSize: 11.5,
+                              fontWeight: 700,
+                              borderColor: '#f59e0b',
+                              color: '#b45309',
+                              background: '#fffbeb',
+                              whiteSpace: 'nowrap'
+                            }}
+                            onClick={() => {
+                              setEditingDesignationUser(m);
+                              setSelectedDesignation(m.designation || '');
+                              setCustomDesignationInput('');
+                            }}
+                          >
+                            <Award size={14} /> {lang === 'bn' ? 'পদবী নির্ধারণ' : 'Assign Title'}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </>
+          );
+        })()}
 
         {/* ===================== TAB: CALENDAR ===================== */}
         {tab === 'calendar' && (() => {
@@ -4429,7 +4562,9 @@ END:VCALENDAR`;
                 <h2>{currentUser.name}</h2>
                 <p>{currentUser.phone}</p>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
-                  <span className="role-badge">{role} (Volunteer Privileges)</span>
+                  <span className="role-badge" style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}>
+                    👑 {currentUser.designation || (currentUser.role === 'Admin' ? 'সভাপতি ও প্রধান অ্যাডমিন' : 'সাধারণ সদস্য')}
+                  </span>
                   <button
                     type="button"
                     onClick={() => {
@@ -4462,6 +4597,12 @@ END:VCALENDAR`;
             </div>
 
             <div className="settings-list">
+              <Setting
+                icon={<Crown />}
+                label={lang === 'bn' ? 'পূজা কমিটি' : 'Puja Committee'}
+                detail={lang === 'bn' ? 'পূজা কমিটির পদবী ও দায়িত্বপ্রাপ্ত পরিষদ' : 'Committee hierarchy & designations'}
+                onClick={() => setTab('committee')}
+              />
               <Setting
                 icon={<CircleDollarSign />}
                 label={lang === 'bn' ? 'আমার মাসিক চাঁদার লক্ষ্য' : 'My Monthly Chada Limit'}
@@ -4785,6 +4926,31 @@ END:VCALENDAR`;
               <option value="Admin">Admin</option>
             </select>
 
+            <label style={{ marginTop: 12 }}>{lang === 'bn' ? 'কমিটির পদবী' : 'Committee Designation'}</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                className="field"
+                value={selectedUser.designation || ''}
+                onChange={e => {
+                  const desig = e.target.value;
+                  setSelectedUser(prev => prev ? { ...prev, designation: desig } : null);
+                }}
+                placeholder="যেমন: কোষাধ্যক্ষ, প্রচার সম্পাদক..."
+              />
+              <button
+                type="button"
+                className="primary-button"
+                style={{ width: 'auto', padding: '0 14px' }}
+                onClick={() => {
+                  if (selectedUser.designation) {
+                    updateMemberDesignation(selectedUser.id, selectedUser.designation);
+                  }
+                }}
+              >
+                {lang === 'bn' ? 'সংরক্ষণ' : 'Save'}
+              </button>
+            </div>
+
             <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
               <button
                 className="secondary-button"
@@ -4813,6 +4979,62 @@ END:VCALENDAR`;
                 <Trash2 size={16} /> {lang === 'bn' ? 'মুছে ফেলুন' : 'Delete'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================== MODAL: EDIT COMMITTEE DESIGNATION ===================== */}
+      {editingDesignationUser && (
+        <div className="modal-backdrop" onClick={() => setEditingDesignationUser(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-head">
+              <h2>{lang === 'bn' ? 'কমিটির পদবী নির্ধারণ' : 'Assign Designation'}</h2>
+              <button onClick={() => setEditingDesignationUser(null)}>
+                <X />
+              </button>
+            </div>
+            <p style={{ margin: '4px 0 16px', fontSize: 13, color: '#78350f' }}>
+              <strong>{editingDesignationUser.name}</strong> ({editingDesignationUser.phone})
+            </p>
+
+            <label style={{ fontWeight: 700, marginBottom: 8, display: 'block' }}>
+              {lang === 'bn' ? 'প্রচলিত পদবীসমূহ থেকে নির্বাচন করুন:' : 'Select Standard Title:'}
+            </label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+              {COMMITTEE_DESIGNATIONS.map(d => (
+                <button
+                  key={d}
+                  type="button"
+                  className={`filter-chip ${selectedDesignation === d && !customDesignationInput ? 'active' : ''}`}
+                  onClick={() => {
+                    setSelectedDesignation(d);
+                    setCustomDesignationInput('');
+                  }}
+                  style={{ fontSize: 11.5, padding: '5px 9px' }}
+                >
+                  {d}
+                </button>
+              ))}
+            </div>
+
+            <label>{lang === 'bn' ? 'অথবা নিজস্ব পদবী লিখুন:' : 'Or Enter Custom Title:'}</label>
+            <input
+              className="field"
+              value={customDesignationInput}
+              onChange={e => setCustomDesignationInput(e.target.value)}
+              placeholder={lang === 'bn' ? 'যেমন: প্রধান সমন্বয়ক, সাংস্কৃতিক সম্পাদক...' : 'e.g. Chief Coordinator'}
+            />
+
+            <button
+              className="primary-button"
+              style={{ marginTop: 14 }}
+              onClick={() => {
+                const final = customDesignationInput.trim() || selectedDesignation || 'সাধারণ সদস্য';
+                updateMemberDesignation(editingDesignationUser.id, final);
+              }}
+            >
+              <CheckCircle2 size={18} /> {lang === 'bn' ? 'পদবী সংরক্ষণ করুন' : 'Save Designation'}
+            </button>
           </div>
         </div>
       )}

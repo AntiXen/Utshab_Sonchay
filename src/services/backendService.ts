@@ -244,6 +244,9 @@ export const subscribeToUsers = (
           active: d.active !== false,
           monthlyCommitment: Number(d.monthlyCommitment) || 1000,
           password: d.password || '',
+          approvalStatus: (d.approvalStatus as 'Approved' | 'Pending' | 'Rejected') || 'Approved',
+          designation: d.designation || (d.role === 'admin' ? 'প্রধান সভাপতি ও অ্যাডমিন' : 'কমিটি সদস্য'),
+          joinedAt: d.joinedAt || '',
         };
       });
       if (liveUsers.length > 0) {
@@ -271,9 +274,30 @@ export const saveUserToFirestore = async (user: User): Promise<void> => {
     active: user.active,
     monthlyCommitment: user.monthlyCommitment || 1000,
     password: user.password || '',
+    approvalStatus: user.approvalStatus || 'Approved',
+    designation: user.designation || (user.role === 'Admin' ? 'প্রধান সভাপতি ও অ্যাডমিন' : 'কমিটি সদস্য'),
+    joinedAt: user.joinedAt || new Date().toISOString().split('T')[0],
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   }, { merge: true });
+};
+
+export const updateUserApprovalInFirestore = async (userId: number, approvalStatus: 'Approved' | 'Pending' | 'Rejected'): Promise<void> => {
+  if (!isLiveBackend() || !db) return;
+  const userDocRef = doc(db, 'users', `user_${userId}`);
+  await updateDoc(userDocRef, {
+    approvalStatus,
+    updatedAt: serverTimestamp(),
+  });
+};
+
+export const updateUserDesignationInFirestore = async (userId: number, designation: string): Promise<void> => {
+  if (!isLiveBackend() || !db) return;
+  const userDocRef = doc(db, 'users', `user_${userId}`);
+  await updateDoc(userDocRef, {
+    designation,
+    updatedAt: serverTimestamp(),
+  });
 };
 
 export const updateUserPasswordInFirestore = async (userId: number, newPassword: string): Promise<void> => {
