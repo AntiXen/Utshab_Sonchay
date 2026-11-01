@@ -631,12 +631,8 @@ export default function App() {
     return `${y}-${m}-${d}`;
   });
 
-  // Selected festival schedule for countdown (defaults to 2027 if past Oct 21 2026)
-  const defaultPujaYear = useMemo(() => {
-    return today.getFullYear() > 2026 || (today.getFullYear() === 2026 && today.getMonth() >= 9 && today.getDate() > 21) ? 2027 : 2026;
-  }, [today]);
-
-  const [selectedPujaYear, setSelectedPujaYear] = useState<number>(defaultPujaYear);
+  // Selected festival schedule for countdown (defaults to 2027 for next upcoming Durga Puja)
+  const [selectedPujaYear, setSelectedPujaYear] = useState<number>(2027);
 
   // Committee Events in Calendar
   const [committeeEvents, setCommitteeEvents] = useState<CommitteeCalendarEvent[]>(() => {
@@ -2562,68 +2558,39 @@ END:VCALENDAR`;
         {/* ===================== TAB: HOME ===================== */}
         {tab === 'home' && (
           <>
-            {/* Festival Banner */}
+            {/* Festival Banner (Focus on Upcoming 2027 Durga Puja) */}
             <section className="festival-banner">
               <div className="banner-flower">✿</div>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                  <span className="eyebrow">{lang === 'bn' ? 'শারদীয় শুভেচ্ছা' : 'Sharodiya Greetings'}</span>
-                  <div className="calendar-year-pills" style={{ transform: 'scale(0.85)', transformOrigin: 'left center' }}>
-                    <button
-                      className={`calendar-year-pill ${selectedPujaYear === 2026 ? 'active' : ''}`}
-                      onClick={() => setSelectedPujaYear(2026)}
-                      style={{ padding: '2px 7px' }}
-                    >
-                      {lang === 'bn' ? '২০২৬' : '2026'}
-                    </button>
-                    <button
-                      className={`calendar-year-pill ${selectedPujaYear === 2027 ? 'active' : ''}`}
-                      onClick={() => setSelectedPujaYear(2027)}
-                      style={{ padding: '2px 7px' }}
-                    >
-                      {lang === 'bn' ? '২০২৭' : '2027'}
-                    </button>
-                  </div>
+                  <span className="eyebrow">{lang === 'bn' ? 'শারদীয় শুভেচ্ছা ২০২৭' : 'Sharodiya Greetings 2027'}</span>
+                  <span style={{ fontSize: 10, background: '#a61f1f', color: '#fff', padding: '1px 6px', borderRadius: 6, fontWeight: 700 }}>
+                    {lang === 'bn' ? 'পরবর্তী মহাউৎসব' : 'Next Festival'}
+                  </span>
                 </div>
-                <h1>{lang === 'bn' ? activePujaSchedule.titleBn : activePujaSchedule.titleEn}</h1>
+                <h1>{lang === 'bn' ? PUJA_SCHEDULES[2027].titleBn : PUJA_SCHEDULES[2027].titleEn}</h1>
                 <p>
-                  {isFestivalOngoing ? (
-                    lang === 'bn' ? 'আজ দুর্গাপূজার মহাউৎসব চলছে!' : 'Durga Puja Celebration is ongoing!'
-                  ) : daysToShashthi > 0 ? (
+                  {daysToShashthi > 0 ? (
                     <>
                       {t.countdown}{' '}
                       <b>{lang === 'bn' ? toBnDigits(daysToShashthi) : daysToShashthi} {t.daysRemaining}</b>
                     </>
                   ) : (
-                    <span>{lang === 'bn' ? `উৎসব সমাপ্ত (${toBnDigits(Math.abs(daysToDashami))} দিন আগে)` : `Celebration ended (${Math.abs(daysToDashami)} days ago)`}</span>
+                    <span>{lang === 'bn' ? 'কাউন্টডাউন সক্রিয়' : 'Countdown active'}</span>
                   )}
                 </p>
               </div>
               <div
                 className="countdown"
                 style={{
-                  background: isFestivalOngoing ? '#15803d' : daysToShashthi > 0 ? '#a61f1f' : '#64748b',
+                  background: '#a61f1f',
                   cursor: 'pointer'
                 }}
                 onClick={() => setTab('calendar')}
-                title={lang === 'bn' ? 'ক্যালেন্ডার দেখুন' : 'View Calendar'}
+                title={lang === 'bn' ? '২০২৭ ক্যালেন্ডার দেখুন' : 'View 2027 Calendar'}
               >
-                {isFestivalOngoing ? (
-                  <>
-                    <strong style={{ fontSize: 16 }}>{lang === 'bn' ? 'উৎসব' : 'Fest'}</strong>
-                    <span>{lang === 'bn' ? 'চলছে' : 'Live'}</span>
-                  </>
-                ) : daysToShashthi > 0 ? (
-                  <>
-                    <strong>{lang === 'bn' ? toBnDigits(daysToShashthi) : daysToShashthi}</strong>
-                    <span>{t.daysRemaining}</span>
-                  </>
-                ) : (
-                  <>
-                    <strong style={{ fontSize: 16 }}>{lang === 'bn' ? 'সম্পন্ন' : 'Done'}</strong>
-                    <span>{lang === 'bn' ? 'পূজা' : 'Puja'}</span>
-                  </>
-                )}
+                <strong>{lang === 'bn' ? toBnDigits(daysToShashthi) : daysToShashthi}</strong>
+                <span>{t.daysRemaining}</span>
               </div>
             </section>
 
@@ -2688,54 +2655,138 @@ END:VCALENDAR`;
               </section>
             )}
 
-            {/* MONTHLY CHADA 1st-10th DEADLINE BANNER */}
-            <section className={`chada-window-card ${isCurrentUserPaidThisMonth ? 'paid' : isChadaWindowActive ? 'active-window' : 'overdue'}`}>
-              <div className="chada-window-top">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <CalendarDays size={16} color={isCurrentUserPaidThisMonth ? '#15803d' : isChadaWindowActive ? '#b45309' : '#be123c'} />
-                  <strong style={{ fontSize: 13, color: isCurrentUserPaidThisMonth ? '#15803d' : isChadaWindowActive ? '#92400e' : '#9f1239' }}>
-                    {t.chadaDeadlineTitle}
+            {/* UNIFIED MONTHLY CHADA & DEADLINE CARD (MERGED & STREAMLINED) */}
+            <section
+              style={{
+                background: isCurrentUserPaidThisMonth
+                  ? 'linear-gradient(135deg, #f0fdf4 0%, #e2fbe9 100%)'
+                  : isChadaOverdue
+                  ? 'linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%)'
+                  : 'linear-gradient(135deg, #fffbf2 0%, #fff4e0 100%)',
+                border: isCurrentUserPaidThisMonth
+                  ? '1.5px solid #86efac'
+                  : isChadaOverdue
+                  ? '1.5px solid #fda4af'
+                  : '1.5px solid #fed7aa',
+                borderRadius: 20,
+                padding: '16px 18px',
+                marginBottom: 16,
+                boxShadow: '0 4px 14px rgba(69, 45, 21, 0.05)'
+              }}
+            >
+              {/* Card Header: Month info + Deadline status badge */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <CalendarDays size={17} color={isCurrentUserPaidThisMonth ? '#15803d' : isChadaOverdue ? '#be123c' : '#b45309'} />
+                  <strong style={{ fontSize: 13.5, color: isCurrentUserPaidThisMonth ? '#166534' : isChadaOverdue ? '#9f1239' : '#9a3412' }}>
+                    {lang === 'bn'
+                      ? `আমার মাসিক চাঁদা (${getMonthLabel(currentRealMonthId, true)} — চলতি মাস)`
+                      : `My Monthly Chada (${getMonthLabel(currentRealMonthId, true)})`}
                   </strong>
                 </div>
-                <span className={`chada-window-badge ${isCurrentUserPaidThisMonth ? 'badge-window-paid' : isChadaWindowActive ? 'badge-window-active' : 'badge-window-overdue'}`}>
-                  {isCurrentUserPaidThisMonth
-                    ? (lang === 'bn' ? 'পরিশোধিত ✓' : 'Paid ✓')
-                    : isChadaWindowActive
-                    ? (lang === 'bn' ? (currentDayOfMonth === 10 ? 'আজই শেষ দিন!' : `আর ${toBnDigits(daysLeftInChadaWindow)} দিন বাকি`) : (currentDayOfMonth === 10 ? 'Last Day!' : `${daysLeftInChadaWindow}d left`))
-                    : (lang === 'bn' ? 'সময়সীমা শেষ (বকেয়া)' : 'Overdue')}
-                </span>
-              </div>
 
-              <div className={`chada-window-content ${isCurrentUserPaidThisMonth ? 'paid' : isChadaWindowActive ? 'active-window' : 'overdue'}`}>
-                <h3>
-                  {isCurrentUserPaidThisMonth
-                    ? (lang === 'bn' ? 'আপনার চলতি মাসের চাঁদা সফলভাবে জমা হয়েছে' : 'Monthly contribution successfully paid')
-                    : isChadaWindowActive
-                    ? (lang === 'bn' ? 'চলতি মাসের চাঁদা প্রদানের সময় চলছে (১ - ১০ তারিখ)' : 'Monthly chada payment window is open (1st - 10th)')
-                    : (lang === 'bn' ? '১০ তারিখের সময়সীমা অতিক্রান্ত হয়েছে!' : '10th deadline has passed!')}
-                </h3>
-                <p>
-                  {isCurrentUserPaidThisMonth
-                    ? (lang === 'bn' ? `ধন্যবাদ! আপনার ${fmt(currentUser?.monthlyCommitment || 1000)} চাঁদা পূজা তহবিলে হিসাবভুক্ত হয়েছে।` : `Thank you! Your ${fmt(currentUser?.monthlyCommitment || 1000)} contribution has been credited.`)
-                    : isChadaWindowActive
-                    ? (lang === 'bn' ? `প্রতি মাসের ১ থেকে ১০ তারিখের মধ্যে চাঁদা প্রদান নিয়ম। ${currentDayOfMonth === 10 ? 'আজ ১০ তারিখ — চাঁদা দেওয়ার শেষ দিন!' : `১০ তারিখ শেষ সময়, আর মাত্র ${toBnDigits(daysLeftInChadaWindow)} দিন বাকি।`} অনুগ্রহ করে আপনার ${fmt(currentUser?.monthlyCommitment || 1000)} চাঁদা বিকাশ বা নগদে জমা দিন।` : `Chada must be paid within 1st-10th. ${daysLeftInChadaWindow} days remaining.`)
-                    : (lang === 'bn' ? `চলতি মাসের ১০ তারিখের সময়সীমা শেষ হয়েছে (${toBnDigits(currentDayOfMonth - 10)} দিন অতিক্রান্ত)। আপনার ${fmt(currentUser?.monthlyCommitment || 1000)} চাঁদা এখনও বাকি আছে। অনুগ্রহ করে দ্রুত পরিশোধ করুন।` : `Monthly deadline of 10th has passed. Your ${fmt(currentUser?.monthlyCommitment || 1000)} is overdue. Please pay now.`)}
-                </p>
-
-                <div className="chada-window-action">
-                  {!isCurrentUserPaidThisMonth ? (
-                    <button
-                      className="chada-pay-btn"
-                      onClick={() => setTab('bkash-pay')}
-                    >
-                      <Wallet size={15} /> {t.payChadaNow}
-                    </button>
-                  ) : (
-                    <span style={{ fontSize: 11, color: '#166534', display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <CheckCircle2 size={15} /> {lang === 'bn' ? 'রসিদ ও হিসাব সংরক্ষিত আছে' : 'Receipt & record saved'}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {memberDueMonths.length > 0 && (
+                    <span style={{ fontSize: 10, background: '#fee2e2', color: '#dc2626', fontWeight: 800, padding: '2px 7px', borderRadius: 6, border: '1px solid #fca5a5' }}>
+                      {lang === 'bn' ? `⚠️ ${toBnDigits(memberDueMonths.length)} মাসের বকেয়া` : `⚠️ ${memberDueMonths.length} mo due`}
                     </span>
                   )}
+                  <span
+                    style={{
+                      fontSize: 10.5,
+                      fontWeight: 800,
+                      padding: '3px 8px',
+                      borderRadius: 6,
+                      background: isCurrentUserPaidThisMonth ? '#dcfce7' : isChadaWindowActive ? '#fef3c7' : '#fee2e2',
+                      color: isCurrentUserPaidThisMonth ? '#15803d' : isChadaWindowActive ? '#b45309' : '#b91c1c',
+                      border: `1px solid ${isCurrentUserPaidThisMonth ? '#bbf7d0' : isChadaWindowActive ? '#fde68a' : '#fecaca'}`
+                    }}
+                  >
+                    {isCurrentUserPaidThisMonth
+                      ? (lang === 'bn' ? 'পরিশোধিত ✓' : 'Paid ✓')
+                      : isChadaWindowActive
+                      ? (lang === 'bn' ? (currentDayOfMonth === 10 ? 'আজই শেষ দিন!' : `১-১০ তারিখ (আর ${toBnDigits(daysLeftInChadaWindow)} দিন)`) : (currentDayOfMonth === 10 ? 'Last Day!' : `${daysLeftInChadaWindow}d left`))
+                      : (lang === 'bn' ? 'সময়সীমা অতিক্রান্ত' : 'Overdue')}
+                  </span>
                 </div>
+              </div>
+
+              {/* Amount and description */}
+              <div style={{ marginBottom: 12 }}>
+                <h3 style={{ margin: '0 0 4px', fontSize: 18, color: isCurrentUserPaidThisMonth ? '#15803d' : isChadaOverdue ? '#9f1239' : '#8d1717' }}>
+                  {isCurrentUserPaidThisMonth ? (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <CheckCircle2 size={19} color="#16a34a" /> {lang === 'bn' ? `পরিশোধিত (${fmt(currentUser?.monthlyCommitment || 1000)})` : `Paid (${fmt(currentUser?.monthlyCommitment || 1000)})`}
+                    </span>
+                  ) : (
+                    <span>{lang === 'bn' ? `বকেয়া চাঁদা: ${fmt(currentUser?.monthlyCommitment || 1000)}` : `Due: ${fmt(currentUser?.monthlyCommitment || 1000)}`}</span>
+                  )}
+                </h3>
+                <p style={{ margin: 0, fontSize: 11.5, color: '#68594e', lineHeight: 1.5 }}>
+                  {isCurrentUserPaidThisMonth
+                    ? (lang === 'bn' ? 'ধন্যবাদ! আপনার মাসিক চাঁদা পূজা তহবিলে হিসাবভুক্ত হয়েছে।' : 'Thank you! Your contribution has been credited to the puja fund.')
+                    : isChadaWindowActive
+                    ? (lang === 'bn' ? `প্রতি মাসের ১ থেকে ১০ তারিখের মধ্যে চাঁদা প্রদান আবশ্যক (${currentDayOfMonth === 10 ? 'আজ ১০ তারিখ শেষ সময়' : `১০ তারিখ শেষ সময়, আর মাত্র ${toBnDigits(daysLeftInChadaWindow)} দিন বাকি`})। বিকাশ বা নগদে সেন্ড মানি করে TrxID জমা দিন।` : `Payment window 1st-10th is open. Please pay via bKash or Nagad.`)
+                    : (lang === 'bn' ? `চলতি মাসের ১০ তারিখের সময়সীমা শেষ হয়েছে (${toBnDigits(currentDayOfMonth - 10)} দিন অতিক্রান্ত)। অনুগ্রহ করে বিলম্ব না করে বিকাশ বা নগদে পরিশোধ করুন।` : `10th deadline passed. Please pay your contribution.`)}
+                </p>
+              </div>
+
+              {/* Side-by-side Action Buttons */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                {!isCurrentUserPaidThisMonth ? (
+                  <button
+                    type="button"
+                    className="primary-button"
+                    style={{
+                      flex: 1,
+                      minWidth: 170,
+                      background: 'linear-gradient(110deg, #a61f1f, #8d1717)',
+                      padding: '10px 14px',
+                      borderRadius: 12,
+                      fontSize: 12.5,
+                      margin: 0,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6
+                    }}
+                    onClick={() => {
+                      setChadaAmountInput(String(currentUser?.monthlyCommitment || 1000));
+                      setTab('bkash-pay');
+                    }}
+                  >
+                    <Smartphone size={16} /> {lang === 'bn' ? 'বিকাশ বা নগদে চাঁদা দিন' : 'Pay via bKash / Nagad'}
+                  </button>
+                ) : (
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#166534', fontWeight: 600 }}>
+                    <CheckCircle2 size={16} /> {lang === 'bn' ? 'রসিদ ও হিসাব সংরক্ষিত আছে' : 'Receipt recorded'}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTempLimitChoice(currentUser?.monthlyCommitment || 1000);
+                    setCustomLimitInput('');
+                    setShowChangeLimitModal(true);
+                  }}
+                  style={{
+                    background: 'rgba(255,255,255,0.95)',
+                    border: '1px solid #d4c3b3',
+                    borderRadius: 12,
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    color: '#6d4825',
+                    padding: '10px 13px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    cursor: 'pointer'
+                  }}
+                  title={lang === 'bn' ? 'মাসিক চাঁদার পরিমাণ পরিবর্তন করুন' : 'Change monthly commitment'}
+                >
+                  ✏️ {lang === 'bn' ? 'চাঁদা পরিবর্তন' : 'Change Limit'}
+                </button>
               </div>
             </section>
 
@@ -2799,88 +2850,7 @@ END:VCALENDAR`;
               </section>
             )}
 
-            {/* Member's Personal Monthly Chada Status Card */}
-            <section
-              style={{
-                background: isCurrentUserPaidThisMonth
-                  ? 'linear-gradient(135deg, #e3f5e6, #d2f0d7)'
-                  : 'linear-gradient(135deg, #fff2f6, #ffe1ec)',
-                border: isCurrentUserPaidThisMonth ? '1px solid #c2e8c8' : '1px solid #f6bed3',
-                borderRadius: 20,
-                padding: '16px 18px',
-                marginBottom: 16,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 12
-              }}
-            >
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: isCurrentUserPaidThisMonth ? '#206b40' : '#e2136e' }}>
-                    {lang === 'bn'
-                      ? `আমার মাসিক চাঁদা (${getMonthLabel(currentRealMonthId, true)} — চলতি মাস)`
-                      : `My Monthly Chada (${getMonthLabel(currentRealMonthId, true)} — Current)`}
-                  </span>
-                  {memberDueMonths.length > 0 && (
-                    <span style={{ fontSize: 10, background: '#fee2e2', color: '#dc2626', fontWeight: 800, padding: '1px 6px', borderRadius: 6, border: '1px solid #fca5a5' }}>
-                      {lang === 'bn' ? `⚠️ ${toBnDigits(memberDueMonths.length)} মাসের বকেয়া` : `⚠️ ${memberDueMonths.length} mo due`}
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTempLimitChoice(currentUser?.monthlyCommitment || 1000);
-                      setCustomLimitInput('');
-                      setShowChangeLimitModal(true);
-                    }}
-                    style={{
-                      background: 'rgba(255,255,255,0.8)',
-                      border: '1px solid #e0b0c5',
-                      borderRadius: 8,
-                      fontSize: 10,
-                      fontWeight: 700,
-                      color: '#a00e4f',
-                      padding: '2px 7px',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 3,
-                      cursor: 'pointer'
-                    }}
-                    title={lang === 'bn' ? 'মাসিক চাঁদার পরিমাণ পরিবর্তন করুন' : 'Change monthly limit'}
-                  >
-                    ✏️ {lang === 'bn' ? 'চাঁদা পরিবর্তন' : 'Change Limit'}
-                  </button>
-                </div>
-                <h3 style={{ margin: '4px 0', fontSize: 17, color: isCurrentUserPaidThisMonth ? '#195533' : '#a00e4f' }}>
-                  {isCurrentUserPaidThisMonth ? (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <CheckCircle2 size={18} color="#25774a" /> {lang === 'bn' ? `পরিশোধিত (${fmt(currentUser?.monthlyCommitment || 1000)})` : `Paid (${fmt(currentUser?.monthlyCommitment || 1000)})`}
-                    </span>
-                  ) : (
-                    <span>{lang === 'bn' ? `বাকি আছে (${fmt(currentUser?.monthlyCommitment || 1000)})` : `Unpaid (${fmt(currentUser?.monthlyCommitment || 1000)})`}</span>
-                  )}
-                </h3>
-                <small style={{ color: '#665' }}>
-                  {isCurrentUserPaidThisMonth
-                    ? (lang === 'bn' ? 'ধন্যবাদ! আপনার চাঁদা তহবিলে জমা হয়েছে।' : 'Thank you! Contribution credited.')
-                    : (lang === 'bn' ? 'বিকাশের মাধ্যমে সরাসরি চাঁদা পরিশোধ করুন' : 'Pay via bKash and verify TrxID')}
-                </small>
-              </div>
 
-              {!isCurrentUserPaidThisMonth && (
-                <button
-                  className="primary-small"
-                  style={{ background: '#e2136e', padding: '10px 14px', borderRadius: 12, whiteSpace: 'nowrap' }}
-                  onClick={() => {
-                    setChadaAmountInput(String(currentUser.monthlyCommitment || 1000));
-                    setTab('bkash-pay');
-                  }}
-                >
-                  <Smartphone size={16} /> {lang === 'bn' ? 'বিকাশে চাঁদা দিন' : 'Pay via bKash'}
-                </button>
-              )}
-            </section>
 
             {/* Financial Stats Grid */}
             <section className="stats-grid">
@@ -3695,14 +3665,22 @@ END:VCALENDAR`;
                   </div>
                 </div>
 
-                {/* Quick bKash Payment Banner */}
+                {/* Quick bKash & Nagad Payment Banner */}
                 <div style={{ marginBottom: 16 }}>
                   <button
                     className="primary-button"
-                    style={{ background: 'linear-gradient(110deg, #e2136e, #c00f5c)', margin: 0 }}
+                    style={{
+                      background: 'linear-gradient(110deg, #a61f1f, #8d1717)',
+                      margin: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      boxShadow: '0 4px 12px rgba(166, 31, 31, 0.22)'
+                    }}
                     onClick={() => setTab('bkash-pay')}
                   >
-                    <Smartphone size={18} /> {lang === 'bn' ? 'বিকাশে মাসিক চাঁদা পরিশোধ করুন' : 'Pay Monthly Chada via bKash'}
+                    <Smartphone size={18} /> {lang === 'bn' ? 'বিকাশ বা নগদে মাসিক চাঁদা দিন' : 'Pay Monthly Chada (bKash / Nagad)'}
                   </button>
                 </div>
 
@@ -4044,10 +4022,18 @@ END:VCALENDAR`;
               <div style={{ marginBottom: 14 }}>
                 <button
                   className="primary-button"
-                  style={{ background: 'linear-gradient(110deg, #e2136e, #c00f5c)', margin: 0 }}
+                  style={{
+                    background: 'linear-gradient(110deg, #a61f1f, #8d1717)',
+                    margin: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    boxShadow: '0 4px 12px rgba(166, 31, 31, 0.22)'
+                  }}
                   onClick={() => setTab('bkash-pay')}
                 >
-                  <Smartphone size={18} /> {t.payChadaBkash}
+                  <Smartphone size={18} /> {lang === 'bn' ? 'বিকাশ বা নগদে মাসিক চাঁদা দিন' : 'Pay Monthly Chada (bKash / Nagad)'}
                 </button>
               </div>
 
@@ -5142,17 +5128,6 @@ END:VCALENDAR`;
                   </div>
                   <div className="calendar-year-pills">
                     <button
-                      className={`calendar-year-pill ${selectedPujaYear === 2026 ? 'active' : ''}`}
-                      onClick={() => {
-                        setSelectedPujaYear(2026);
-                        setCalendarYear(2026);
-                        setCalendarMonth(9);
-                        setSelectedDayStr('2026-10-17');
-                      }}
-                    >
-                      {lang === 'bn' ? '২০২৬' : '2026'}
-                    </button>
-                    <button
                       className={`calendar-year-pill ${selectedPujaYear === 2027 ? 'active' : ''}`}
                       onClick={() => {
                         setSelectedPujaYear(2027);
@@ -5161,7 +5136,18 @@ END:VCALENDAR`;
                         setSelectedDayStr('2027-10-05');
                       }}
                     >
-                      {lang === 'bn' ? '২০২৭' : '2027'}
+                      {lang === 'bn' ? '২০২৭ (পরবর্তী পূজা)' : '2027 (Next Puja)'}
+                    </button>
+                    <button
+                      className={`calendar-year-pill ${selectedPujaYear === 2026 ? 'active' : ''}`}
+                      onClick={() => {
+                        setSelectedPujaYear(2026);
+                        setCalendarYear(2026);
+                        setCalendarMonth(9);
+                        setSelectedDayStr('2026-10-17');
+                      }}
+                    >
+                      {lang === 'bn' ? '২০২৬ (আর্কাইভ)' : '2026 (Archive)'}
                     </button>
                   </div>
                 </div>

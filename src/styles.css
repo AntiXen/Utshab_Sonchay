@@ -348,11 +348,36 @@
   color: #332;
   margin: 4px 0 8px;
 }
+.copy-pill {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  background: #ffffff;
+  border: 1px solid #f2b9ce;
+  color: #a00e4f;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.copy-pill:hover {
+  background: #fff0f5;
+  border-color: #e2136e;
+}
 .copy-pill.nagad {
-  background: #ea580c;
+  background: #ffffff;
+  border: 1px solid #f8cbb1;
+  color: #c2410c;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 .copy-pill.nagad:hover {
-  background: #c2410c;
+  background: #fff7ed;
+  border-color: #ea580c;
 }
 .chada-method-tabs {
   display: flex;
