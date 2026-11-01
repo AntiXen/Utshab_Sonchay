@@ -869,15 +869,7 @@ export default function App() {
         setIsAdjustingDues(false);
         setSelectedAdjustMonths([]);
         setChadaAmountInput(String(userCommitment));
-
-        const firstAvailable = CURRENT_CYCLE_MONTHS
-          .filter(m => m.id >= currentRealMonthId)
-          .sort((a, b) => a.id.localeCompare(b.id))
-          .find(m => {
-            const st = getMemberMonthStatus(m.id, currentUser);
-            return st !== 'paid' && st !== 'pending';
-          });
-        setSelectedChadaMonth(firstAvailable ? firstAvailable.id : currentRealMonthId);
+        setSelectedChadaMonth(currentRealMonthId);
       }
     }
   }, [tab, currentUser?.id, currentUser?.monthlyCommitment, currentRealMonthId]);
@@ -2967,7 +2959,7 @@ END:VCALENDAR`;
                     onClick={() => {
                       setIsAdjustingDues(false);
                       const userCommitment = currentUser?.monthlyCommitment || 1000;
-                      setSelectedChadaMonth(memberDueMonths[0]?.id || currentRealMonthId);
+                      setSelectedChadaMonth(currentRealMonthId);
                       setChadaAmountInput(String(userCommitment));
                     }}
                     style={{
@@ -2986,7 +2978,7 @@ END:VCALENDAR`;
                       boxShadow: !isAdjustingDues ? '0 2px 6px rgba(71, 85, 105, 0.3)' : 'none'
                     }}
                   >
-                    {lang === 'bn' ? 'শুধুমাত্র ১ মাস দিন' : 'Pay Single Month'}
+                    {lang === 'bn' ? 'শুধুমাত্র চলতি মাস দিন' : 'Pay Current Month Only'}
                   </button>
                 </div>
 
@@ -3071,72 +3063,67 @@ END:VCALENDAR`;
               </div>
             )}
 
-            {/* Month Selection (For Single Month or when no dues) */}
+            {/* 2. AUTO-CALCULATED MONTH DISPLAY (NO DROPDOWN) */}
             {(!isAdjustingDues || memberDueMonths.length === 0) && (
-              <>
-                <label>{lang === 'bn' ? '২. কোন মাসের চাঁদা পরিশোধ করছেন?' : '2. For which month are you paying Chada?'}</label>
-                <select
-                  className="field"
-                  value={selectedChadaMonth}
-                  onChange={e => {
-                    setSelectedChadaMonth(e.target.value);
-                    setChadaAmountInput(String(currentUser?.monthlyCommitment || 1000));
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 13, fontWeight: 700, color: '#332', display: 'block', marginBottom: 6 }}>
+                  {lang === 'bn' ? '২. চাঁদা প্রদানের মাস:' : '2. Contribution Month:'}
+                </label>
+                <div
+                  style={{
+                    background: '#f8fafc',
+                    border: '1.5px solid #cbd5e1',
+                    borderRadius: 14,
+                    padding: '14px 16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 12
                   }}
                 >
-                  <optgroup label={lang === 'bn' ? 'চলতি পূজা চক্র (১ নভেম্বর ২০২৬ — অক্টোবর ২০২৭)' : 'Current Puja Cycle (1 Nov 2026 — Oct 2027)'}>
-                    {CURRENT_CYCLE_MONTHS.map(m => {
-                      const status = getMemberMonthStatus(m.id, currentUser);
-                      const isPaid = status === 'paid';
-                      const isPending = status === 'pending';
-                      const isDue = status === 'due';
-                      const isCurrent = status === 'current';
-
-                      let prefix = '';
-                      let suffix = '';
-                      if (isPaid) {
-                        prefix = '✓ ';
-                        suffix = lang === 'bn' ? ' (পরিশোধিত — সম্পন্ন)' : ' (Paid - Done)';
-                      } else if (isPending) {
-                        prefix = '🕒 ';
-                        suffix = lang === 'bn' ? ' (যাচাইাধীন — TrxID জমা দেওয়া হয়েছে)' : ' (Pending Verification)';
-                      } else if (isDue) {
-                        prefix = '⚠️ ';
-                        suffix = lang === 'bn' ? ' (বকেয়া মাস)' : ' (Due Month)';
-                      } else if (isCurrent) {
-                        prefix = '📌 ';
-                        suffix = lang === 'bn' ? ' (চলতি মাস)' : ' (Current Month)';
-                      }
-
-                      return (
-                        <option
-                          key={m.id}
-                          value={m.id}
-                          disabled={isPaid || isPending}
-                          style={isPaid ? { color: '#16a34a' } : isPending ? { color: '#d97706' } : isDue ? { color: '#dc2626', fontWeight: 700 } : {}}
-                        >
-                          {prefix}{lang === 'bn' ? m.nameBn : m.nameEn}{suffix}
-                        </option>
-                      );
-                    })}
-                  </optgroup>
-                  <optgroup label={lang === 'bn' ? 'বিগত পূজা চক্র (সম্পন্ন)' : 'Past Completed Cycle'}>
-                    {PREVIOUS_CYCLE_MONTHS.map(m => {
-                      const status = getMemberMonthStatus(m.id, currentUser);
-                      const isPaid = status === 'paid';
-                      const isPending = status === 'pending';
-                      return (
-                        <option
-                          key={m.id}
-                          value={m.id}
-                          disabled={isPaid || isPending}
-                        >
-                          {isPaid ? '✓ ' : ''}{lang === 'bn' ? m.nameBn : m.nameEn}{isPaid ? (lang === 'bn' ? ' (পরিশোধিত)' : ' (Paid)') : ''}
-                        </option>
-                      );
-                    })}
-                  </optgroup>
-                </select>
-              </>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div
+                      style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: 10,
+                        background: '#e2e8f0',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#8d1717',
+                        flexShrink: 0
+                      }}
+                    >
+                      <CalendarDays size={20} />
+                    </div>
+                    <div>
+                      <strong style={{ fontSize: 15, color: '#0f172a', display: 'block' }}>
+                        {getMonthLabel(currentRealMonthId, false)}
+                      </strong>
+                      <span style={{ fontSize: 11, color: '#64748b' }}>
+                        {lang === 'bn'
+                          ? 'বর্তমান সময় ও তারিখ অনুযায়ী স্বয়ংক্রিয়ভাবে চলতি মাস নির্ধারিত'
+                          : 'Auto-calculated based on current date & time'}
+                      </span>
+                    </div>
+                  </div>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      background: '#dcfce7',
+                      color: '#15803d',
+                      fontWeight: 800,
+                      padding: '4px 10px',
+                      borderRadius: 8,
+                      border: '1px solid #bbf7d0',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {lang === 'bn' ? '✓ চলতি মাস' : '✓ Current Month'}
+                  </span>
+                </div>
+              </div>
             )}
 
             {/* Amount Input */}
