@@ -499,6 +499,7 @@ export const subscribeToNotifications = (
           time: d.time || (d.createdAt?.toDate ? d.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'আজ'),
           entityType: d.entityType || 'announcement',
           entityId: d.entityId,
+          targetRole: d.targetRole || 'all',
         };
       });
       if (liveData.length > 0) {
@@ -525,6 +526,7 @@ export const saveNotificationToFirestore = async (notif: AppNotification): Promi
     time: notif.time,
     entityType: notif.entityType || 'announcement',
     entityId: notif.entityId || null,
+    targetRole: notif.targetRole || 'all',
     createdAt: serverTimestamp(),
   });
 };
@@ -545,6 +547,7 @@ export const fetchNotificationsFromFirestore = async (): Promise<AppNotification
         time: d.time || 'আজ',
         entityType: d.entityType || 'announcement',
         entityId: d.entityId,
+        targetRole: d.targetRole || 'all',
       };
     });
   } catch (err) {

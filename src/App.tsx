@@ -181,6 +181,7 @@ export interface AppNotification {
   time: string;
   entityType?: 'bill' | 'income' | 'general' | 'announcement';
   entityId?: number;
+  targetRole?: 'Admin' | 'Member' | 'all';
 }
 
 export interface MerchantTransaction {
@@ -437,6 +438,19 @@ export default function App() {
       return null;
     }
   });
+
+  const currentUserRef = useRef<User | null>(currentUser);
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
+
+  // Real-time Approval Sync Refs
+  const prevUserIdsRef = useRef<Set<number>>(new Set());
+  const isFirstUsersSyncRef = useRef(true);
+  const prevIncomeIdsRef = useRef<Set<number>>(new Set());
+  const isFirstIncomeSyncRef = useRef(true);
+  const prevBillIdsRef = useRef<Set<number>>(new Set());
+  const isFirstBillSyncRef = useRef(true);
 
   const [income, setIncome] = useState<Income[]>(() => {
     try {
@@ -829,6 +843,25 @@ export default function App() {
     }
   };
 
+  // Listen for Service Worker Notification click navigation messages
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
+    const handleSwMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'NAVIGATE') {
+        if (event.data.tab) {
+          setTab(event.data.tab);
+        }
+        if (event.data.subTab === 'pending') {
+          setMemberSectionTab('pending');
+        }
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', handleSwMessage);
+    return () => {
+      navigator.serviceWorker.removeEventListener('message', handleSwMessage);
+    };
+  }, []);
+
   // Auspicious Festive Temple Bell & Chime Synthesizer (Zero-latency HTML5 Web Audio API)
   const playFestiveNotificationSound = () => {
     if (typeof window === 'undefined') return;
@@ -878,12 +911,21 @@ export default function App() {
     }
   };
 
-  // Helper to dispatch device notification to mobile screen
-  const sendDeviceNotification = (title: string, body: string, tag = 'chada-reminder') => {
+  // Helper to dispatch device notification to mobile screen (with Service Worker & native fallback)
+  const sendDeviceNotification = (
+    title: string,
+    body: string,
+    tag = 'chada-reminder',
+    navTarget: { tab?: Tab; subTab?: string; url?: string } = {}
+  ) => {
     if (typeof window === 'undefined') return;
 
     // Play auspicious bell chime sound
     playFestiveNotificationSound();
+
+    const targetTab = navTarget.tab || (tag.includes('member') ? 'members' : tag.includes('income') ? 'income' : tag.includes('bill') ? 'expenses' : 'home');
+    const targetSubTab = navTarget.subTab || (tag.includes('member') ? 'pending' : undefined);
+    const targetUrl = navTarget.url || (tag.includes('member') ? '/#members' : tag.includes('income') ? '/#income' : '/');
 
     // 1. Try Service Worker showNotification (pops up on mobile screen even outside the app)
     if ('serviceWorker' in navigator) {
@@ -893,30 +935,49 @@ export default function App() {
           icon: '/icon.svg',
           badge: '/icon.svg',
           tag,
-          vibrate: [200, 100, 200, 100, 200],
+          vibrate: [300, 100, 300, 100, 300],
           requireInteraction: true,
-          data: { url: '/#bkash-pay' },
+          renotify: true,
+          data: { url: targetUrl, tab: targetTab, subTab: targetSubTab },
+          actions: [
+            { action: 'open', title: lang === 'bn' ? 'যাচাই ও অনুমোদন করুন' : 'Review' },
+            { action: 'close', title: lang === 'bn' ? 'বন্ধ করুন' : 'Close' }
+          ]
         }).catch((err: any) => {
           console.warn('SW notification failed, trying fallback:', err);
-          fallbackNativeNotification(title, body, tag);
+          fallbackNativeNotification(title, body, tag, navTarget);
         });
       }).catch(() => {
-        fallbackNativeNotification(title, body, tag);
+        fallbackNativeNotification(title, body, tag, navTarget);
       });
     } else {
-      fallbackNativeNotification(title, body, tag);
+      fallbackNativeNotification(title, body, tag, navTarget);
     }
   };
 
-  const fallbackNativeNotification = (title: string, body: string, tag: string) => {
+  const fallbackNativeNotification = (
+    title: string,
+    body: string,
+    tag: string,
+    navTarget: { tab?: Tab; subTab?: string } = {}
+  ) => {
     if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
       try {
-        new Notification(title, {
+        const notif = new Notification(title, {
           body,
           icon: '/icon.svg',
           tag,
           requireInteraction: true
         });
+        notif.onclick = () => {
+          window.focus();
+          if (navTarget.tab) {
+            setTab(navTarget.tab);
+          } else if (tag.includes('member')) {
+            setTab('members');
+            setMemberSectionTab('pending');
+          }
+        };
       } catch (err) {
         console.warn('Native notification fallback failed:', err);
       }
@@ -1064,27 +1125,97 @@ export default function App() {
 
     // 2. Real-time subscriptions for reactive live updates
     const unsubIncome = subscribeToIncome(liveIncomes => {
+      const isAdmin = currentUserRef.current?.role === 'Admin';
+      if (!isFirstIncomeSyncRef.current && isAdmin) {
+        const newIncomes = liveIncomes.filter(inc => !prevIncomeIdsRef.current.has(inc.id));
+        for (const inc of newIncomes) {
+          if (inc.status === 'Pending' && inc.type === 'contribution') {
+            sendDeviceNotification(
+              lang === 'bn' ? '💸 নতুন চাঁদা স্টেটমেন্ট যাচাই' : '💸 New Chada Verification Needed',
+              `${inc.name} - ৳${toBnDigits(inc.amount)} (${inc.method}, TrxID: ${inc.trxId || 'নেই'}) জমা দিয়েছেন। স্টেটমেন্ট মিলিয়ে অনুমোদন করুন।`,
+              `pending-income-${inc.id}`,
+              { tab: 'income', subTab: 'chada', url: '/#income' }
+            );
+          }
+        }
+      }
+      isFirstIncomeSyncRef.current = false;
+      prevIncomeIdsRef.current = new Set(liveIncomes.map(i => i.id));
       setIncome(liveIncomes);
     });
+
     const unsubBills = subscribeToBills(liveBills => {
+      const isAdmin = currentUserRef.current?.role === 'Admin';
+      if (!isFirstBillSyncRef.current && isAdmin) {
+        const newBills = liveBills.filter(b => !prevBillIdsRef.current.has(b.id));
+        for (const b of newBills) {
+          if (b.status === 'Pending') {
+            sendDeviceNotification(
+              lang === 'bn' ? '📋 নতুন বিল রিকোয়েস্ট অনুমোদন' : '📋 New Bill Request Approval',
+              `${b.vendor}: মোট ৳${toBnDigits(b.total)} টাকা (${b.requester}) অনুমোদন চেয়েছেন।`,
+              `pending-bill-${b.id}`,
+              { tab: 'expenses', url: '/#expenses' }
+            );
+          }
+        }
+      }
+      isFirstBillSyncRef.current = false;
+      prevBillIdsRef.current = new Set(liveBills.map(b => b.id));
       setBills(liveBills);
     });
+
     const unsubUsers = subscribeToUsers(liveUsers => {
+      const isAdmin = currentUserRef.current?.role === 'Admin';
+      if (!isFirstUsersSyncRef.current && isAdmin) {
+        const newUsers = liveUsers.filter(u => !prevUserIdsRef.current.has(u.id));
+        for (const u of newUsers) {
+          if (u.approvalStatus === 'Pending') {
+            sendDeviceNotification(
+              lang === 'bn' ? '👤 নতুন সদস্য অনুমোদনের আবেদন' : '👤 New Member Approval Request',
+              `${u.name} (${u.phone}) সদস্য হওয়ার আবেদন করেছেন। চাঁদার লক্ষ্য: ৳${toBnDigits(u.monthlyCommitment || 1000)}/মাস। যাচাই করে অনুমোদন দিন।`,
+              `pending-member-${u.id}`,
+              { tab: 'members', subTab: 'pending', url: '/#members' }
+            );
+          }
+        }
+      }
+      isFirstUsersSyncRef.current = false;
+      prevUserIdsRef.current = new Set(liveUsers.map(u => u.id));
       setUsers(liveUsers);
     });
+
     const unsubNotifs = subscribeToNotifications(liveNotifs => {
       setNotifications(prev => {
         const readIds = new Set(prev.filter(x => x.read).map(x => x.id));
         const prevIds = new Set(prev.map(x => x.id));
         const brandNew = liveNotifs.filter(n => !prevIds.has(n.id));
+        const isAdmin = currentUserRef.current?.role === 'Admin';
+
         if (brandNew.length > 0 && prev.length > 0) {
-          const latest = brandNew[0];
-          sendDeviceNotification(latest.title, latest.body, 'cloud-notification');
+          for (const notif of brandNew) {
+            // ONLY Admin receives notifications targeted to Admin
+            if (notif.targetRole === 'Admin') {
+              if (isAdmin) {
+                sendDeviceNotification(
+                  notif.title,
+                  notif.body,
+                  `cloud-admin-${notif.id}`,
+                  { tab: 'members', subTab: 'pending', url: '/#members' }
+                );
+              }
+            } else if (!notif.targetRole || notif.targetRole === 'all') {
+              sendDeviceNotification(notif.title, notif.body, `cloud-${notif.id}`);
+            }
+          }
         }
-        return liveNotifs.map(n => ({
-          ...n,
-          read: readIds.has(n.id)
-        }));
+
+        // Regular members should NOT see admin-targeted notifications in their notification list
+        return liveNotifs
+          .filter(n => !n.targetRole || n.targetRole === 'all' || (n.targetRole === 'Admin' && isAdmin))
+          .map(n => ({
+            ...n,
+            read: readIds.has(n.id)
+          }));
       });
     });
 
@@ -1467,17 +1598,19 @@ export default function App() {
       await saveUserToFirestore(pendingUser).catch(err => console.warn('Cloud save pending user failed:', err));
       setIsSigningUp(false);
 
-      // Notification for Admin
+      // Notification specifically targeted to Main Admin for manual approval
       const adminNotif: AppNotification = {
         id: Date.now(),
         title: lang === 'bn' ? '👤 নতুন সদস্য অনুমোদনের আবেদন' : '👤 New Member Approval Request',
-        body: `${pendingUser.name} (${pendingUser.phone}) নতুন আবেদন করেছেন। চাঁদার লক্ষ্য: ৳${toBnDigits(finalCommitment)}/মাস। সদস্য তালিকা থেকে যাচাই করে অনুমোদন করুন।`,
+        body: `${pendingUser.name} (${pendingUser.phone}) সদস্য হওয়ার জন্য আবেদন করেছেন। চাঁদার লক্ষ্য: ৳${toBnDigits(finalCommitment)}/মাস। যাচাই করে অনুমোদন দিন।`,
         color: 'gold',
         read: false,
         time: lang === 'bn' ? 'এইমাত্র' : 'Just now',
-        entityType: 'general'
+        entityType: 'general',
+        targetRole: 'Admin'
       };
       setNotifications(prev => [adminNotif, ...prev]);
+      await saveNotificationToFirestore(adminNotif).catch(err => console.warn('Cloud save admin notif failed:', err));
 
       setSignupPendingInfo({ name: pendingUser.name, phone: pendingUser.phone });
       setAuthName('');
@@ -1644,22 +1777,22 @@ export default function App() {
 
     const monthSummaryStr = monthsToProcess.map(m => getMonthLabel(m, true)).join(' ও ');
 
-    // Admin Notification
-    setNotifications(prev => [
-      {
-        id: Date.now(),
-        title: monthsToProcess.length > 1
-          ? (lang === 'bn' ? 'চাঁদা ও বকেয়া সমন্বয় যাচাই প্রয়োজন' : 'Chada Due Adjustment Verification')
-          : (lang === 'bn' ? 'নতুন চাঁদা যাচাই প্রয়োজন' : 'New Chada Verification Needed'),
-        body: `${currentUser?.name || 'সদস্য'} - ${fmt(nAmount)} (${chadaMethod}, TrxID: ${cleanTrx}, মাস: ${monthSummaryStr})। স্টেটমেন্ট মিলিয়ে অনুমোদন করুন।`,
-        color: 'gold',
-        read: false,
-        time: lang === 'bn' ? 'এইমাত্র' : 'Just now',
-        entityType: 'income',
-        entityId: newIncomes[0].id
-      },
-      ...prev
-    ]);
+    // Admin Verification Notification (Targeted to Admin only)
+    const chadaAdminNotif: AppNotification = {
+      id: Date.now(),
+      title: monthsToProcess.length > 1
+        ? (lang === 'bn' ? '💸 চাঁদা ও বকেয়া সমন্বয় যাচাই প্রয়োজন' : '💸 Chada Due Adjustment Verification')
+        : (lang === 'bn' ? '💸 নতুন চাঁদা যাচাই প্রয়োজন' : '💸 New Chada Verification Needed'),
+      body: `${currentUser?.name || 'সদস্য'} - ${fmt(nAmount)} (${chadaMethod}, TrxID: ${cleanTrx}, মাস: ${monthSummaryStr})। স্টেটমেন্ট মিলিয়ে অনুমোদন করুন।`,
+      color: 'gold',
+      read: false,
+      time: lang === 'bn' ? 'এইমাত্র' : 'Just now',
+      entityType: 'income',
+      entityId: newIncomes[0].id,
+      targetRole: 'Admin'
+    };
+    setNotifications(prev => [chadaAdminNotif, ...prev]);
+    saveNotificationToFirestore(chadaAdminNotif).catch(err => console.warn('Cloud save chada admin notif failed:', err));
 
     setVerificationResult({
       success: true,
@@ -1884,19 +2017,19 @@ export default function App() {
 
     setBills(prev => [newBill, ...prev]);
     saveBillToFirestore(newBill).catch(err => console.warn('Cloud save bill failed:', err));
-    setNotifications(prev => [
-      {
-        id: Date.now(),
-        title: lang === 'bn' ? 'নতুন খরচের আবেদন (অনুমোদনের অপেক্ষায়)' : 'New Expense Request (Needs Approval)',
-        body: `${finalVendor}: মোট ${fmt(total)}, পরিশোধিত ${fmt(paid)}, বাকি ${fmt(total - paid)} (${currentUser?.name})`,
-        color: 'red',
-        read: false,
-        time: lang === 'bn' ? 'এইমাত্র' : 'Just now',
-        entityType: 'bill',
-        entityId: billId
-      },
-      ...prev
-    ]);
+    const billAdminNotif: AppNotification = {
+      id: Date.now(),
+      title: lang === 'bn' ? '📋 নতুন খরচের আবেদন (অনুমোদনের অপেক্ষায়)' : '📋 New Expense Request (Needs Approval)',
+      body: `${finalVendor}: মোট ${fmt(total)}, পরিশোধিত ${fmt(paid)}, বাকি ${fmt(total - paid)} (${currentUser?.name})`,
+      color: 'red',
+      read: false,
+      time: lang === 'bn' ? 'এইমাত্র' : 'Just now',
+      entityType: 'bill',
+      entityId: billId,
+      targetRole: 'Admin'
+    };
+    setNotifications(prev => [billAdminNotif, ...prev]);
+    saveNotificationToFirestore(billAdminNotif).catch(err => console.warn('Cloud save bill admin notif failed:', err));
 
     setDescription('');
     setBillAmount('');
